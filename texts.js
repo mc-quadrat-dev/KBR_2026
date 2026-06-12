@@ -39,6 +39,11 @@ const GAME_TEXTS = {
        keine Station zum Platzieren ansteht (ausgegrauter Zustand) */
     dockIdle: "Nächste Station",
 
+    /* Abfahrtstafel (einklappbares Panel oben links) */
+    boardTitle: "Abfahrtstafel",
+    boardEmpty: "Keine wartenden Anliegen",
+    boardWild: "Freies Anliegen",
+
     /* Kurze Toast-Meldungen (kleine Hinweise unten) */
     continentToast: "Nächste Station erscheint bevorzugt auf diesem Kontinent.",
     autoPlacedToast: "Station wurde automatisch platziert.",

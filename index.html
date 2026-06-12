@@ -42,6 +42,59 @@ html, body {
 #mapSvg #Land path { transition: filter 0.45s ease; }
 #mapSvg path.continent-flash { filter: brightness(1.8) saturate(1.2); }
 
+/* ---------- 1b. Abfahrtstafel (oben links, einklappbar) ----------
+   Eingeklappt: nur ein rundes Uhr-Icon. Ausgeklappt: Liste aller
+   wartenden Anliegen mit Station, Farbe und Restzeit-Countdown. */
+#departureBoard {
+  position: absolute; top: 10px; left: 10px; z-index: 50;
+  color: #fff; overflow: hidden;
+  width: 280px; max-width: 78vw;
+  transition: width 0.25s ease;
+}
+#departureBoard.hidden { display: none; }
+#departureBoard.collapsed { width: 46px; }
+#boardToggle {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; min-height: 44px; padding: 10px 11px;
+  background: none; border: none; cursor: pointer; color: #fff;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  white-space: nowrap; text-align: left;
+}
+#boardToggle svg { flex: 0 0 auto; }
+#departureBoard.collapsed #boardTitleText { opacity: 0; }
+
+/* Einklapp-Pfeil rechts im Kopf (nur ausgeklappt sichtbar) */
+#boardArrow { margin-left: auto; font-size: 13px; opacity: 0.8; }
+#departureBoard.collapsed #boardArrow { opacity: 0; }
+
+/* Notification-Badge am eingeklappten Uhr-Icon: Anzahl wartender Anliegen */
+#boardBadge {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9px; background: #e20074; color: #fff;
+  font-size: 11px; font-weight: 800; line-height: 1;
+  display: none; align-items: center; justify-content: center;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0, 10, 35, 0.5), 0 0 0 1.5px rgba(255, 255, 255, 0.55);
+}
+#departureBoard.collapsed #boardBadge.show { display: flex; }
+#boardList {
+  list-style: none; margin: 0; padding: 2px 12px 12px;
+  max-height: min(330px, 52vh); overflow-y: auto;
+}
+#departureBoard.collapsed #boardList { display: none; }
+#boardList li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; font-size: 13px; font-weight: 600;
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+#boardList li.empty { opacity: 0.6; border-top: none; font-weight: 500; }
+#boardList .b-dots { display: flex; gap: 3px; flex: 0 0 auto; }
+#boardList .b-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255,255,255,0.7); }
+#boardList .b-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#boardList .b-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; opacity: 0.9; }
+#boardList li.urgent .b-time { color: #ff5a5a; opacity: 1; font-weight: 800; }
+
 /* ---------- 2. HUD & Linienmenü ---------- */
 .glass {
   background: rgba(8, 20, 52, 0.55);
@@ -88,6 +141,7 @@ html, body {
   font-family: inherit;
 }
 #restartBtn:active { background: rgba(255,255,255,0.28); }
+#restartBtn .r-icon { display: none; } /* Icon nur im schmalen Seitenlayout */
 
 /* Linienmenü unten */
 #lineMenu {
@@ -488,6 +542,72 @@ html, body {
 .fx-pulse { fill: none; transform-box: fill-box; transform-origin: center; animation: fxPulse 0.9s ease-out forwards; }
 @keyframes fxPulse { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.9); opacity: 0; } }
 .fx-ripple { fill: none; stroke: #fff; transform-box: fill-box; transform-origin: center; animation: fxPulse 0.7s ease-out forwards; }
+
+/* ---------- 8. Mobile ----------
+   a) Schmale Screens (Hochformat): alles kompakter, Linien nur als Farbpunkte.
+   b) Flache Quer-Screens (Smartphone querkant): UI dreht an die Seiten —
+      HUD links als Spalte, Linienmenü + Dock rechts als Spalte. */
+@media (max-width: 760px) {
+  #hud { top: 6px; gap: 8px; padding: 6px 10px; }
+  .hud-value { font-size: 13px; }
+  .hud-label { font-size: 9px; }
+  #stabilityBar { width: 64px; height: 9px; }
+  #restartBtn { padding: 6px 9px; min-height: 36px; font-size: 12px; }
+  #departureBoard { top: 56px; left: 6px; }
+  #lineMenu { bottom: 8px; padding: 6px; gap: 6px; }
+  .line-btn { min-height: 44px; padding: 8px 10px; }
+  #dockDotWrap { width: 44px; height: 44px; }
+  #dockDot { inset: 8px; }
+  #dockLabel { font-size: 11px; padding: 4px 9px; bottom: calc(100% + 24px); }
+  #demoHint { bottom: 132px; font-size: 12px; white-space: normal; text-align: center; max-width: 86vw; }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  /* HUD: schmale linke Spalte (so breit wie das Abfahrtstafel-Icon),
+     ohne Headlines — vertikaler Stabilitätsbalken, nur Werte, Icon-Neustart */
+  #hud {
+    left: 8px; top: 62px; transform: none;
+    flex-direction: column; align-items: center; gap: 10px;
+    padding: 10px 4px; width: 46px;
+  }
+  .hud-label { display: none; }
+  .hud-block { align-items: center; gap: 4px; }
+  #stabilityRow { flex-direction: column; gap: 5px; }
+  #stabilityBar { width: 10px; height: 84px; }
+  .hud-value { font-size: 11px; }
+  #restartBtn { padding: 0; width: 34px; min-height: 34px; font-size: 17px; border-radius: 10px; }
+  #restartBtn .r-text { display: none; }
+  #restartBtn .r-icon { display: inline; }
+
+  #departureBoard { top: 8px; left: 8px; }
+
+  /* Linienmenü: rechte Spalte, nur Farbpunkte */
+  #lineMenu {
+    left: auto; right: 8px; bottom: auto; top: 50%;
+    transform: translateY(-50%);
+    flex-direction: column; gap: 6px; padding: 6px;
+    max-height: calc(100dvh - 16px); max-width: none;
+  }
+  .line-btn { min-height: 42px; padding: 8px; justify-content: center; }
+  .line-btn span.label { display: none; }
+  #dockDotWrap { width: 42px; height: 42px; }
+  #dockDot { inset: 8px; }
+  /* Dock-Beschriftung + Pfeil links neben dem Kreis */
+  #dockLabel {
+    bottom: auto; left: auto; right: calc(100% + 12px); top: 50%;
+    transform: translateY(-50%); font-size: 11px; padding: 4px 9px;
+  }
+  #dockArrow { bottom: auto; left: auto; right: calc(100% + 2px); top: 50%; }
+  #stationDock.active #dockArrow { animation: arrowBounceSide 0.7s ease-in-out infinite; }
+
+  #demoHint { bottom: 12px; font-size: 12px; }
+  #demoBadge { top: 8px; right: 12px; font-size: 16px; }
+}
+/* Pfeil zeigt im Seitenlayout nach rechts auf den Dot und wippt horizontal */
+@keyframes arrowBounceSide {
+  0%, 100% { transform: translateY(-50%) rotate(-90deg) translateY(0); }
+  50%      { transform: translateY(-50%) rotate(-90deg) translateY(8px); }
+}
 </style>
 </head>
 <body>
@@ -602,6 +722,20 @@ html, body {
     </svg>
   </div>
 
+  <!-- ============== ABFAHRTSTAFEL (oben links, einklappbar) ============== -->
+  <aside id="departureBoard" class="glass collapsed hidden">
+    <button id="boardToggle" type="button" aria-label="Abfahrtstafel">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/>
+        <path d="M12 7 V12 L15.5 14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span id="boardTitleText"></span>
+      <span id="boardArrow">▴</span>
+    </button>
+    <span id="boardBadge">0</span>
+    <ul id="boardList"></ul>
+  </aside>
+
   <!-- ======================= HUD (oben) ======================= -->
   <header id="hud" class="glass hidden">
     <div class="hud-block">
@@ -619,7 +753,7 @@ html, body {
       <span class="hud-label" id="timeLabel">Zeit</span>
       <span class="hud-value" id="timeValue">2:00</span>
     </div>
-    <button id="restartBtn" type="button">Neustart</button>
+    <button id="restartBtn" type="button"><span class="r-icon">⟳</span><span class="r-text">Neustart</span></button>
   </header>
 
   <!-- ======================= LINIENMENÜ (unten) =======================
@@ -937,14 +1071,29 @@ function buildSpawnPools() {
   }
 }
 
+/* Schmale Quer-Geräte (Smartphone im Querformat): UI wandert an die Seiten —
+   HUD links als Spalte, Linienmenü rechts als Spalte (siehe CSS-Media-Query). */
+const verticalUIQuery = window.matchMedia("(orientation: landscape) and (max-height: 540px)");
+const isVerticalUI = () => verticalUIQuery.matches;
+
 /* Aktuell sichtbarer Kartenausschnitt (bei "slice" wird ja beschnitten),
-   abzüglich HUD oben und Linienmenü unten, damit nichts verdeckt spawnt. */
+   abzüglich der tatsächlichen UI-Flächen, damit nichts verdeckt spawnt.
+   Funktioniert für beide Layouts (UI oben/unten oder links/rechts). */
 function visibleMapRect() {
   const w = window.innerWidth, h = window.innerHeight;
-  const topPx = hud.classList.contains("hidden") ? 24 : hud.offsetHeight + 30;
-  const bottomPx = lineMenu.classList.contains("hidden") ? 24 : lineMenu.offsetHeight + 34;
-  const tl = clientToMap(64, topPx);
-  const br = clientToMap(w - 80, h - bottomPx); // rechts Rand für Stationsnamen lassen
+  let top = 24, bottom = 24, left = 64, right = 80;
+  if (!hud.classList.contains("hidden")) {
+    const r = hud.getBoundingClientRect();
+    if (isVerticalUI()) left = Math.max(left, r.right + 24);
+    else top = Math.max(top, r.bottom + 24);
+  }
+  if (!lineMenu.classList.contains("hidden")) {
+    const r = lineMenu.getBoundingClientRect();
+    if (isVerticalUI()) right = Math.max(right, w - r.left + 24);
+    else bottom = Math.max(bottom, h - r.top + 44); // +Platz für das Dock-Label darüber
+  }
+  const tl = clientToMap(left, top);
+  const br = clientToMap(w - right, h - bottom);
   return { x1: tl.x, y1: tl.y, x2: br.x, y2: br.y };
 }
 const inRect = (p, r) => p.x > r.x1 && p.x < r.x2 && p.y > r.y1 && p.y < r.y2;
@@ -1035,6 +1184,8 @@ function resetRound() {
 
   setDockIdle();
   clearSelectRing();
+  $("departureBoard").classList.add("collapsed");
+  $("boardList").replaceChildren();
   updateHud();
   renderLineMenu();
 }
@@ -1063,6 +1214,7 @@ function showScreen(name) {
   const inGame = name === "game";
   hud.classList.toggle("hidden", !inGame);
   lineMenu.classList.toggle("hidden", !inGame); // das Dock hängt im Menü und verschwindet mit
+  $("departureBoard").classList.toggle("hidden", !inGame);
 }
 
 /* ====================================================================== [6]
@@ -1149,6 +1301,13 @@ function loop(now) {
     updateStability(dt);
     if (state.demo && state.running) demoBotTick(dt);
     updateHud();
+
+    // Abfahrtstafel ~4× pro Sekunde aktualisieren (nur wenn ausgeklappt)
+    state.boardTimer = (state.boardTimer ?? 0) - dt;
+    if (state.boardTimer <= 0 && !$("departureBoard").classList.contains("collapsed")) {
+      state.boardTimer = 0.25;
+      renderBoard();
+    }
 
     if (state.running && state.timeLeft <= 0) endGame(state.stability > 0);
   }
@@ -1805,12 +1964,79 @@ function flashInfluence() {
   after(4, () => block.classList.remove("attention"));
 }
 
+/* --- Abfahrtstafel ----------------------------------------------------------
+   Zeigt alle wartenden Anliegen: Station, Farbe (ein Punkt je Anliegen) und
+   Countdown bis Minuspunkte drohen bzw. eine falsche Linie genommen wird.
+   - Station ohne Verbindung:      Countdown bis zum Stabilitätsverlust
+   - Station ohne passende Linie:  Countdown bis zur Ausweich-Verbindung
+   - Freie Anliegen:               Countdown bis zum Stabilitätsverlust
+   Anliegen mit passender Linie steigen gleich ein und erscheinen nicht. */
+function boardEntries() {
+  const rows = [];
+  for (const st of state.stations) {
+    const groups = new Map(); // je Farbe ein Eintrag pro Station
+    for (const p of st.waiting) {
+      if (st.conns.some((c) => c.line === p.color)) continue; // wird gleich abgeholt
+      const limit = st.conns.length ? BALANCE.wrongBoardAfter : BALANCE.strandedGrace;
+      const g = groups.get(p.color) || { count: 0, remain: Infinity };
+      g.count++;
+      g.remain = Math.min(g.remain, limit - p.wait);
+      groups.set(p.color, g);
+    }
+    for (const [color, g] of groups) rows.push({ name: st.name, color, count: g.count, remain: g.remain });
+  }
+  for (const p of state.points) {
+    if (p.kind === "wild") rows.push({ name: T.ui.boardWild, color: p.color, count: 1, remain: BALANCE.wildGrace - p.age });
+  }
+  rows.sort((a, b) => a.remain - b.remain); // dringendste zuerst
+  return rows;
+}
+
+function renderBoard() {
+  const list = $("boardList");
+  const rows = boardEntries();
+  list.replaceChildren();
+  if (!rows.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = T.ui.boardEmpty;
+    list.appendChild(li);
+    return;
+  }
+  for (const row of rows) {
+    const li = document.createElement("li");
+    if (row.remain <= 1.5) li.className = "urgent";
+    const dots = document.createElement("span");
+    dots.className = "b-dots";
+    for (let i = 0; i < Math.min(row.count, 4); i++) {
+      const d = document.createElement("span");
+      d.className = "b-dot";
+      d.style.background = LINES[row.color].color;
+      dots.appendChild(d);
+    }
+    const name = document.createElement("span");
+    name.className = "b-name";
+    name.textContent = row.name;
+    const time = document.createElement("span");
+    time.className = "b-time";
+    time.textContent = Math.max(0, Math.ceil(row.remain)) + " s";
+    li.append(dots, name, time);
+    list.appendChild(li);
+  }
+}
+
 /* --- HUD ------------------------------------------------------------------ */
 function updateHud() {
   const stab = Math.round(state.stability ?? BALANCE.stabilityStart);
   $("stabilityValue").textContent = stab + " %";
   const fill = $("stabilityFill");
-  fill.style.width = clamp(stab, 0, 100) + "%";
+  if (isVerticalUI()) { // Seitenlayout: Balken läuft vertikal von oben nach unten
+    fill.style.height = clamp(stab, 0, 100) + "%";
+    fill.style.width = "100%";
+  } else {
+    fill.style.width = clamp(stab, 0, 100) + "%";
+    fill.style.height = "100%";
+  }
   fill.style.backgroundColor = stab > 50 ? "#46d98c" : stab > 25 ? "#ffc94d" : "#ff5a5a";
 
   $("influenceValue").textContent = Math.round(state.influence ?? BALANCE.influenceStart);
@@ -1837,7 +2063,6 @@ function showBubble({ map, anchor, text, ttl = 5, error = false }) {
   const el = document.createElement("div");
   el.className = "bubble" + (error ? " error" : "");
   el.textContent = text;
-  if (anchor === "influence") el.classList.add("below");
   const b = { el, map: map ? { x: map.x, y: map.y } : null, anchor, error, placement: "above" };
   bubbleLayer.appendChild(el);
   state.bubbles.push(b);
@@ -1919,15 +2144,26 @@ function positionBubble(b) {
     if (b.placement === "above" || b.placement === "below") {
       cx = clamp(cx, 190, window.innerWidth - 190); // im Fenster halten
     }
-  } else if (b.anchor === "lineMenu") {
-    const r = lineMenu.getBoundingClientRect();
-    cx = r.left + r.width / 2; cy = r.top - 10;
-  } else if (b.anchor === "influence") {
-    const r = $("influenceBlock").getBoundingClientRect();
-    cx = r.left + r.width / 2; cy = r.bottom + 6;
-  } else if (b.anchor === "dock") {
-    const r = dockLabel.getBoundingClientRect();
-    cx = r.left + r.width / 2; cy = r.top - 8; // mittig über dem Dock-Label
+  } else if (b.anchor) {
+    // UI-verankerte Blasen: Position je nach Layout (UI oben/unten vs. seitlich)
+    const setCls = (cls) => {
+      b.el.classList.toggle("below", cls === "below");
+      b.el.classList.toggle("side", cls === "side");
+      b.el.classList.toggle("side-right", cls === "side-right");
+    };
+    if (b.anchor === "lineMenu") {
+      const r = lineMenu.getBoundingClientRect();
+      if (isVerticalUI()) { setCls("side"); cx = r.left - 10; cy = r.top + r.height / 2; }
+      else { setCls(null); cx = r.left + r.width / 2; cy = r.top - 10; }
+    } else if (b.anchor === "influence") {
+      const r = $("influenceBlock").getBoundingClientRect();
+      if (isVerticalUI()) { setCls("side-right"); cx = r.right + 10; cy = r.top + r.height / 2; }
+      else { setCls("below"); cx = r.left + r.width / 2; cy = r.bottom + 6; }
+    } else if (b.anchor === "dock") {
+      const r = dockLabel.getBoundingClientRect();
+      if (isVerticalUI()) { setCls("side"); cx = r.left - 8; cy = r.top + r.height / 2; }
+      else { setCls(null); cx = r.left + r.width / 2; cy = r.top - 8; } // mittig über dem Label
+    }
   }
   b.el.style.left = cx + "px";
   b.el.style.top = cy + "px";
@@ -2303,6 +2539,13 @@ $("restartBtn").addEventListener("click", resetToStart);
 $("playAgainBtn").addEventListener("click", () => startGame(false));
 $("toStartBtn").addEventListener("click", resetToStart);
 
+/* Abfahrtstafel auf-/zuklappen */
+$("boardToggle").addEventListener("click", () => {
+  const board = $("departureBoard");
+  board.classList.toggle("collapsed");
+  if (!board.classList.contains("collapsed")) renderBoard(); // sofort befüllen
+});
+
 /* Info-Overlay (Anleitung) öffnen/schließen — nur vom Startscreen aus */
 $("infoBtn").addEventListener("click", () => $("screen-info").classList.remove("hidden"));
 $("infoCloseBtn").addEventListener("click", () => $("screen-info").classList.add("hidden"));
@@ -2328,13 +2571,14 @@ function applyStaticTexts() {
   $("startSubtitle").textContent = T.ui.subtitle;
   $("startIntro").innerHTML = T.ui.intro;
   $("startBtn").textContent = T.ui.startBtn;
-  $("restartBtn").textContent = T.ui.restartBtn;
+  $("restartBtn").querySelector(".r-text").textContent = T.ui.restartBtn;
   $("playAgainBtn").textContent = T.ui.playAgainBtn;
   $("toStartBtn").textContent = T.ui.toStartBtn;
   $("stabilityLabel").textContent = T.ui.stabilityLabel;
   $("influenceLabel").textContent = T.ui.influenceLabel;
   $("timeLabel").textContent = T.ui.timeLabel;
   $("versionTag").textContent = T.ui.version || "";
+  $("boardTitleText").textContent = T.ui.boardTitle;
   buildInfoPanel();
 }
 
