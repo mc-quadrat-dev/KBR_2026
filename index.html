@@ -547,6 +547,21 @@ html, body {
    a) Schmale Screens (Hochformat): alles kompakter, Linien nur als Farbpunkte.
    b) Flache Quer-Screens (Smartphone querkant): UI dreht an die Seiten —
       HUD links als Spalte, Linienmenü + Dock rechts als Spalte. */
+
+/* Gemeinsam für BEIDE Mobile-Fälle (Hochformat ODER flaches Querformat):
+   - das platzraubende Dock-Label ("Nächste Station" / Name) ausblenden;
+     Dot, Glow, Hüpfen und Pfeil signalisieren das Platzieren auch ohne Text
+   - Tutorial-/Fehlerblasen rund 50 % kleiner, damit sie weniger Karte verdecken */
+@media (max-width: 760px), (orientation: landscape) and (max-height: 540px) {
+  #dockLabel { display: none; }
+  .bubble {
+    max-width: min(190px, 58vw); padding: 7px 10px;
+    font-size: 11px; line-height: 1.3; border-radius: 11px;
+    border-left-width: 3px;
+  }
+  .bubble::after { width: 10px; height: 10px; }
+}
+
 @media (max-width: 760px) {
   #hud { top: 6px; gap: 8px; padding: 6px 10px; }
   .hud-value { font-size: 13px; }
@@ -875,8 +890,12 @@ const BALANCE = {
   penaltyWrongLine: 10,       // -% sofort bei falscher Linienfarbe
   overloadThreshold: 2,       // ab so vielen wartenden Punkten gilt eine Station als überlastet
   overloadDrain: 1.0,         // -% pro Sekunde je überlasteter Station
-  strandedDrain: 0.5,         // -% pro Sekunde je wartendem Punkt an Station OHNE Verbindung
-  strandedGrace: 6,           // Sekunden Karenz, bevor "gestrandet" Stabilität zieht
+  /* Anliegen ohne passende Linie steigen NIE in eine falsche Linie ein — sie
+     warten und ziehen mit der Zeit immer mehr Stabilität (eskalierend). */
+  strandedDrain: 0.4,         // -% pro Sekunde je wartendem Anliegen ohne passende Linie (Startwert)
+  strandedDrainMax: 1.6,      // maximaler -%/s je Anliegen (nach langem Warten)
+  strandedRamp: 0.15,         // Anstieg des Abzugs pro weiterer Sekunde Wartezeit
+  strandedGrace: 5,           // Sekunden Karenz, bevor der Abzug beginnt
   wildDrain: 0.5,             // -% pro Sekunde je freiem Punkt auf einem Kontinent
   wildGrace: 3,               // Sekunden Karenz für frische freie Punkte
 
@@ -901,7 +920,6 @@ const BALANCE = {
   maxPointsTotal: 26,         // globale Obergrenze gleichzeitiger Punkte
   pointSpeed: 950,            // Reisegeschwindigkeit (Karteneinheiten/s)
   boardDelay: 0.6,            // kurzes Verweilen, bevor ein Punkt einsteigt
-  wrongBoardAfter: 5,         // nach X s ohne passende Linie nimmt ein Punkt notfalls die falsche
   lateColorFrom: 40,          // ab dieser Sekunde können Stationspunkte auch fremde Farben haben
   lateColorChance: 0.25,      // … mit dieser Wahrscheinlichkeit
 
@@ -1186,6 +1204,10 @@ function resetRound() {
   clearSelectRing();
   $("departureBoard").classList.add("collapsed");
   $("boardList").replaceChildren();
+  $("boardBadge").classList.remove("show");
+  state.boardWasEmpty = true;
+  state.boardAppearances = 0;
+  state.boardAutoExpanded = false;
   updateHud();
   renderLineMenu();
 }
@@ -1302,11 +1324,11 @@ function loop(now) {
     if (state.demo && state.running) demoBotTick(dt);
     updateHud();
 
-    // Abfahrtstafel ~4× pro Sekunde aktualisieren (nur wenn ausgeklappt)
+    // Abfahrtstafel ~4× pro Sekunde aktualisieren (Badge, Auto-Ausklappen, Liste)
     state.boardTimer = (state.boardTimer ?? 0) - dt;
-    if (state.boardTimer <= 0 && !$("departureBoard").classList.contains("collapsed")) {
+    if (state.boardTimer <= 0) {
       state.boardTimer = 0.25;
-      renderBoard();
+      updateBoard();
     }
 
     if (state.running && state.timeLeft <= 0) endGame(state.stability > 0);
@@ -1801,11 +1823,10 @@ function updateWaitingPoint(p, dt) {
   const st = p.station;
   const matching = st.conns.filter((c) => c.line === p.color);
   if (matching.length) {
+    // Nur passende Linien werden genommen — eine falsche Linie steigt ein Anliegen NIE.
     boardPoint(p, randOf(matching), true);
-  } else if (st.conns.length && p.wait >= BALANCE.wrongBoardAfter && !state.demo) {
-    // Keine passende Linie vorhanden → Punkt nimmt notfalls die falsche (Lernmoment)
-    boardPoint(p, randOf(st.conns), false);
-  } else if (!st.conns.length && p.wait > 4 && !state.tutorial.strandedShown) {
+  } else if (p.wait > 4 && !state.tutorial.strandedShown) {
+    // Keine passende Linie da → das Anliegen bleibt und zieht zunehmend Stabilität.
     state.tutorial.strandedShown = true;
     showBubble({ map: st, text: T.errors.stranded, ttl: 6, error: true });
   }
@@ -1922,10 +1943,13 @@ function updateStability(dt) {
   for (const st of state.stations) {
     // Überlastung: ab 2 wartenden Punkten
     if (st.waiting.length >= BALANCE.overloadThreshold) drain += BALANCE.overloadDrain;
-    // Gestrandet: wartende Punkte an Stationen ganz ohne Verbindung
-    if (!st.conns.length) {
-      for (const p of st.waiting) {
-        if (p.wait > BALANCE.strandedGrace) drain += BALANCE.strandedDrain;
+    // Jedes wartende Anliegen ohne passende Linie zieht Stabilität — und zwar
+    // mit der Wartezeit eskalierend (je länger es liegen bleibt, desto teurer).
+    for (const p of st.waiting) {
+      if (st.conns.some((c) => c.line === p.color)) continue; // hat passende Linie → fährt gleich
+      const over = p.wait - BALANCE.strandedGrace;
+      if (over > 0) {
+        drain += Math.min(BALANCE.strandedDrainMax, BALANCE.strandedDrain + BALANCE.strandedRamp * over);
       }
     }
   }
@@ -1971,16 +1995,48 @@ function flashInfluence() {
    - Station ohne passende Linie:  Countdown bis zur Ausweich-Verbindung
    - Freie Anliegen:               Countdown bis zum Stabilitätsverlust
    Anliegen mit passender Linie steigen gleich ein und erscheinen nicht. */
+/* Wird ~4×/s aufgerufen: Badge aktualisieren, ggf. automatisch ausklappen und –
+   falls ausgeklappt – die Liste neu zeichnen. */
+function updateBoard() {
+  const board = $("departureBoard");
+  const rows = boardEntries();
+  const total = rows.reduce((s, r) => s + r.count, 0);
+
+  /* Automatisch ausklappen, sobald zum ZWEITEN Mal etwas wartet — aber nur am
+     Desktop (nicht mobil/schmal) und nur einmal. Danach respektieren wir die
+     manuelle Wahl der Spieler:innen. */
+  if (rows.length) {
+    if (state.boardWasEmpty !== false) {        // Übergang leer → etwas wartet
+      state.boardAppearances = (state.boardAppearances ?? 0) + 1;
+      if (state.boardAppearances >= 2 && !state.boardAutoExpanded
+          && !isVerticalUI() && window.innerWidth > 760) {
+        state.boardAutoExpanded = true;
+        board.classList.remove("collapsed");
+      }
+    }
+    state.boardWasEmpty = false;
+  } else {
+    state.boardWasEmpty = true;
+  }
+
+  /* Notification-Badge am eingeklappten Icon: Anzahl wartender Anliegen */
+  const badge = $("boardBadge");
+  badge.textContent = total > 9 ? "9+" : String(total);
+  badge.classList.toggle("show", total > 0);
+
+  if (!board.classList.contains("collapsed")) renderBoard(rows);
+}
+
 function boardEntries() {
   const rows = [];
   for (const st of state.stations) {
     const groups = new Map(); // je Farbe ein Eintrag pro Station
     for (const p of st.waiting) {
       if (st.conns.some((c) => c.line === p.color)) continue; // wird gleich abgeholt
-      const limit = st.conns.length ? BALANCE.wrongBoardAfter : BALANCE.strandedGrace;
+      // Countdown: Sekunden bis der (eskalierende) Stabilitätsabzug beginnt
       const g = groups.get(p.color) || { count: 0, remain: Infinity };
       g.count++;
-      g.remain = Math.min(g.remain, limit - p.wait);
+      g.remain = Math.min(g.remain, BALANCE.strandedGrace - p.wait);
       groups.set(p.color, g);
     }
     for (const [color, g] of groups) rows.push({ name: st.name, color, count: g.count, remain: g.remain });
@@ -1992,9 +2048,8 @@ function boardEntries() {
   return rows;
 }
 
-function renderBoard() {
+function renderBoard(rows = boardEntries()) {
   const list = $("boardList");
-  const rows = boardEntries();
   list.replaceChildren();
   if (!rows.length) {
     const li = document.createElement("li");
@@ -2539,10 +2594,12 @@ $("restartBtn").addEventListener("click", resetToStart);
 $("playAgainBtn").addEventListener("click", () => startGame(false));
 $("toStartBtn").addEventListener("click", resetToStart);
 
-/* Abfahrtstafel auf-/zuklappen */
+/* Abfahrtstafel auf-/zuklappen. Eine manuelle Interaktion schaltet das
+   automatische Ausklappen ab — die Wahl der Spieler:innen hat Vorrang. */
 $("boardToggle").addEventListener("click", () => {
   const board = $("departureBoard");
   board.classList.toggle("collapsed");
+  state.boardAutoExpanded = true;
   if (!board.classList.contains("collapsed")) renderBoard(); // sofort befüllen
 });
 
