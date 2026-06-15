@@ -493,6 +493,78 @@ html, body {
 }
 #fade.on { opacity: 1; }
 
+/* ---------- 6b. Mini-Tutorial (geführte Tour) ---------- */
+.start-buttons { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; }
+.start-buttons .big-btn { min-width: 0; } /* Platz teilen, damit beide nebeneinander passen */
+
+/* Zoom-fähige Spielfläche während des Tutorials (sanfter Heranzoom) */
+#stage.tut-zoom { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+
+#miniTut { position: fixed; inset: 0; z-index: 95; }
+#miniTut.hidden { display: none; }
+
+/* Abdunkelung mit Spotlight aufs Wesentliche (Position/Radius per JS-Variablen) */
+#mtDim {
+  position: absolute; inset: 0; pointer-events: auto;
+  background: radial-gradient(circle at var(--sx, 50%) var(--sy, 50%),
+              rgba(5, 12, 35, 0) var(--r0, 90px),
+              rgba(5, 12, 35, 0.7) var(--r1, 230px),
+              rgba(5, 12, 35, 0.9) 100%);
+  transition: background 0.5s ease;
+}
+
+/* Erklär-Karte: zentriert, große, fette Typo */
+#mtCard {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  width: min(560px, 90vw); padding: 22px 26px 18px; text-align: center; color: #fff;
+  background: rgba(10, 24, 60, 0.82);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.4); border-radius: 20px;
+  box-shadow: 0 12px 44px rgba(0, 10, 35, 0.55);
+  transition: top 0.5s ease, bottom 0.5s ease;
+}
+#mtCard.at-bottom { bottom: 5vh; }
+#mtCard.at-top { top: 7vh; }
+#mtStepInfo { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; color: #ff5fae; margin-bottom: 6px; }
+#mtTitle { font-size: clamp(22px, 3.2vw, 34px); font-weight: 800; line-height: 1.15; margin-bottom: 10px; }
+#mtText { font-size: clamp(15px, 2vw, 21px); font-weight: 600; line-height: 1.4; margin-bottom: 18px; opacity: 0.97; }
+#mtButtons { display: flex; gap: 12px; align-items: center; justify-content: center; }
+#mtNext { min-width: 180px; }
+#mtBack { min-width: 110px; }
+#mtBack.hidden-step { visibility: hidden; } /* im ersten Schritt kein Zurück */
+/* Auto-Weiter-Fortschrittsbalken unter dem Button */
+#mtProgress { height: 4px; margin: 14px auto 0; width: 70%; background: rgba(255,255,255,0.18); border-radius: 2px; overflow: hidden; }
+#mtProgressFill { display: block; height: 100%; width: 0; background: #ff5fae; border-radius: 2px; }
+
+/* Flug-Dot: Station fliegt vom Dock zum freien Anliegen (Schritt "Stationen selbst setzen") */
+.mt-fly {
+  position: fixed; width: 30px; height: 30px; margin: -15px 0 0 -15px;
+  border-radius: 50%; background: #fff; z-index: 96; pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(226, 0, 116, 0.55), 0 3px 12px rgba(0, 10, 35, 0.6);
+}
+
+/* Überspringen oben rechts */
+#mtSkip {
+  position: absolute; top: 16px; right: 18px;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.35);
+  color: #fff; font-family: inherit; font-size: 14px; font-weight: 600;
+  padding: 8px 14px; border-radius: 12px; cursor: pointer; min-height: 40px;
+}
+#mtSkip:active { background: rgba(255,255,255,0.28); }
+@media (max-width: 760px) {
+  /* Mini-Tutorial deutlich kompakter, damit die Karte wenig verdeckt */
+  #mtCard { width: 94vw; padding: 11px 14px 9px; border-radius: 16px; }
+  #mtCard.at-bottom { bottom: 1.5vh; }
+  #mtCard.at-top { top: 106px; }                /* klar unter HUD + Überspringen-Button */
+  #mtStepInfo { font-size: 11px; margin-bottom: 3px; }
+  #mtTitle { font-size: 18px; margin-bottom: 5px; }
+  #mtText { font-size: 13px; line-height: 1.32; margin-bottom: 10px; }
+  #mtButtons { gap: 8px; }
+  #mtNext { min-width: 0; padding: 9px 20px; min-height: 44px; font-size: 15px; }
+  #mtBack { min-width: 0; padding: 9px 16px; min-height: 44px; font-size: 14px; }
+  #mtProgress { margin-top: 9px; width: 60%; }
+}
+
 /* ---------- 7. SVG-Spielelemente ---------- */
 /* Stationen */
 .station-halo  { fill: rgba(3, 12, 35, 0.4); }
@@ -575,6 +647,7 @@ html, body {
   #dockDot { inset: 8px; }
   #dockLabel { font-size: 11px; padding: 4px 9px; bottom: calc(100% + 24px); }
   #demoHint { bottom: 132px; font-size: 12px; white-space: normal; text-align: center; max-width: 86vw; }
+  #mtSkip { top: 56px; right: 8px; padding: 6px 11px; font-size: 13px; } /* unter die HUD-Leiste */
 }
 
 @media (orientation: landscape) and (max-height: 540px) {
@@ -803,7 +876,10 @@ html, body {
       <h1 id="startTitle"></h1>
       <p class="subtitle" id="startSubtitle"></p>
       <p class="intro" id="startIntro"></p>
-      <button class="big-btn" id="startBtn" type="button">Spiel starten</button>
+      <div class="start-buttons">
+        <button class="big-btn" id="startBtn" type="button">Spiel starten</button>
+        <button class="ghost-btn" id="miniTutBtn" type="button">Kurz erklärt</button>
+      </div>
     </div>
   </section>
 
@@ -847,6 +923,22 @@ html, body {
   <div id="demoHint" class="hidden"></div>
   <div id="flash"></div>
   <div id="fade"></div>
+
+  <!-- ============ MINI-TUTORIAL (geführte Tour) ============ -->
+  <div id="miniTut" class="hidden">
+    <div id="mtDim"></div>                       <!-- dunkelt alles ab, Spotlight aufs Wesentliche -->
+    <div id="mtCard">
+      <div id="mtStepInfo"></div>                <!-- z. B. "2 / 6" -->
+      <h2 id="mtTitle"></h2>
+      <p id="mtText"></p>
+      <div id="mtButtons">
+        <button class="ghost-btn" id="mtBack" type="button">Zurück</button>
+        <button class="big-btn" id="mtNext" type="button">Weiter</button>
+      </div>
+      <div id="mtProgress"><span id="mtProgressFill"></span></div>
+    </div>
+    <button id="mtSkip" type="button">Überspringen ✕</button>
+  </div>
 </div>
 
 <script src="texts.js"></script>
@@ -924,7 +1016,8 @@ const BALANCE = {
   lateColorChance: 0.25,      // … mit dieser Wahrscheinlichkeit
 
   /* Stations-Spawns */
-  stationSchedule: [0, 6, 14, 22],  // Zeitpunkte (s) der ersten vier automatischen Stationen
+  stationSchedule: [0, 1, 14, 22],  // Zeitpunkte (s) der ersten vier automatischen Stationen
+                                    //   (2. Station sehr früh, damit sofort klar ist, was zu verbinden ist)
   stationInterval: 13,        // Abstand (s) ab Station 5
   stationIntervalMin: 8,      // minimaler Abstand am Spielende
   stationIntervalDecay: 0.94, // Verkürzung pro weiterer Station
@@ -1199,7 +1292,17 @@ function resetRound() {
     nameDeck: shuffledNames(),
     botTimer: 1.5,
     bubbles: [],
+    miniTut: false,              // geführte Tour aktiv?
+    miniStep: 0,
+    miniMaxStep: -1,             // weitester bereits aufgebauter Tour-Schritt
   });
+
+  // Mini-Tutorial-Overlay + Zoom sauber zurücksetzen
+  $("miniTut").classList.add("hidden");
+  stage.classList.remove("tut-zoom");
+  stage.style.transform = "";
+  stage.style.transformOrigin = "";
+  mtTimer = null; mtFocus = null; mtViewportKey = "";
 
   setDockIdle();
   clearSelectRing();
@@ -1313,7 +1416,18 @@ function loop(now) {
 
   checkIdle(now);
 
-  if (state.running) {
+  if (state.miniTut) {
+    // Geführte Tour: nur Punktbewegung (Transport-Demo) animieren, sonst nichts.
+    // Spawns, Stabilität, Bot und Spielende sind ausgesetzt — die Tour steuert alles.
+    updatePoints(dt);
+    // Fahrplanauskunft live halten, solange sie in der Tour ausgeklappt ist
+    state.boardTimer = (state.boardTimer ?? 0) - dt;
+    if (state.boardTimer <= 0 && !$("departureBoard").classList.contains("collapsed")) {
+      state.boardTimer = 0.25;
+      renderBoard();
+    }
+    mtRefocus();
+  } else if (state.running) {
     state.time += dt;
     state.timeLeft = Math.max(0, BALANCE.gameDuration - state.time);
 
@@ -1399,35 +1513,38 @@ function createStation(x, y, cid, name) {
   // Spawn-Timer für das nächste Angebot sauber neu aufziehen
   state.stationTimer = nextStationInterval();
 
-  /* --- Tutorial-Momente --- */
-  const tut = state.tutorial;
-  if (state.stationCount === 1) {
-    state.activeLine = cid;          // aktive Startlinie passt zur ersten Station
-    renderLineMenu();
-    if (!tut.firstStationShown) {
-      tut.firstStationShown = true;
-      showBubble({ map: st, text: T.tutorial.firstStation.replace("{FARBE}", T.ui.continentAdjectives[cid]), ttl: 6 });
-    }
-  } else if (state.stationCount === 2 && !tut.secondStationShown) {
-    tut.secondStationShown = true;
-    const needsSwitch = cid !== state.activeLine;
-    showBubble({ map: st, text: needsSwitch ? T.tutorial.secondStationSwitch : T.tutorial.secondStation, ttl: 6 });
-    // Falls nach 7 s noch keine Linie gebaut wurde: Zieh-Hinweis zwischen die Stationen
-    after(7, () => {
-      if (state.running && !state.tutorial.firstConnectionBuilt && state.stations.length >= 2) {
-        const a = state.stations[0], b = state.stations[1];
-        showBubble({ map: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, text: T.tutorial.drawLine, ttl: 7 });
+  // Aktive Startlinie passt zur ersten Station (auch in der Tour sinnvoll)
+  if (state.stationCount === 1) { state.activeLine = cid; renderLineMenu(); }
+
+  /* --- Tutorial-Momente (im normalen Spiel; in der geführten Tour aus) --- */
+  if (!state.miniTut) {
+    const tut = state.tutorial;
+    if (state.stationCount === 1) {
+      if (!tut.firstStationShown) {
+        tut.firstStationShown = true;
+        showBubble({ map: st, text: T.tutorial.firstStation.replace("{FARBE}", T.ui.continentAdjectives[cid]), ttl: 6 });
       }
-    });
-  }
-  // Linienmenü-Hinweis, sobald eine Station eine andere Farbe verlangt
-  if (state.stationCount >= 2 && cid !== state.activeLine && !tut.lineMenuShown) {
-    tut.lineMenuShown = true;
-    showBubble({ anchor: "lineMenu", text: T.tutorial.lineMenu, ttl: 6 });
-    pulseLineButton(cid);
-    // Diese Tutorial-Station lässt sich NUR mit ihrer eigenen Farbe verbinden,
-    // bis das einmal richtig gelungen ist (Farbwechsel-Lektion).
-    if (!state.demo) state.colorLockStation = st;
+    } else if (state.stationCount === 2 && !tut.secondStationShown) {
+      tut.secondStationShown = true;
+      const needsSwitch = cid !== state.activeLine;
+      showBubble({ map: st, text: needsSwitch ? T.tutorial.secondStationSwitch : T.tutorial.secondStation, ttl: 6 });
+      // Falls nach 7 s noch keine Linie gebaut wurde: Zieh-Hinweis zwischen die Stationen
+      after(7, () => {
+        if (state.running && !state.tutorial.firstConnectionBuilt && state.stations.length >= 2) {
+          const a = state.stations[0], b = state.stations[1];
+          showBubble({ map: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, text: T.tutorial.drawLine, ttl: 7 });
+        }
+      });
+    }
+    // Linienmenü-Hinweis, sobald eine Station eine andere Farbe verlangt
+    if (state.stationCount >= 2 && cid !== state.activeLine && !tut.lineMenuShown) {
+      tut.lineMenuShown = true;
+      showBubble({ anchor: "lineMenu", text: T.tutorial.lineMenu, ttl: 6 });
+      pulseLineButton(cid);
+      // Diese Tutorial-Station lässt sich NUR mit ihrer eigenen Farbe verbinden,
+      // bis das einmal richtig gelungen ist (Farbwechsel-Lektion).
+      if (!state.demo) state.colorLockStation = st;
+    }
   }
   return st;
 }
@@ -2132,6 +2249,7 @@ function updateHud() {
    niemand mit Text zugeschüttet.
    ====================================================================== */
 function showBubble({ map, anchor, text, ttl = 5, error = false }) {
+  if (state.miniTut) return; // während der geführten Tour keine kontextuellen Blasen
   // bestehende Blase gleicher Art ersetzen
   state.bubbles = state.bubbles.filter((b) => {
     if (b.error === error) { b.el.remove(); return false; }
@@ -2405,6 +2523,249 @@ function demoPlaceStation() {
   pickupWildNearStation(st);
 }
 
+/* ====================================================================== [13b]
+   MINI-TUTORIAL — geführte 30-Sekunden-Tour
+   ----------------------------------------------------------------------
+   Eine "Kino-Variante" des Demo-Modus: Das Geschehen wird Schritt für
+   Schritt aufgebaut und hält bei jeder neuen Regel an. Statt kleiner
+   Blasen dunkelt ein Spotlight alles Unwichtige ab, zoomt auf das
+   Wesentliche und erklärt es groß und zentriert. Unten "Weiter"; spätestens
+   nach der eingestellten Zeit (max. 15 s) springt es automatisch weiter.
+   ====================================================================== */
+let mtTimer = null;          // Auto-Weiter-Timer des aktuellen Schritts
+let mtFocus = null;          // aktueller Fokus (für Resize) {type, …}
+let mtViewportKey = "";      // erkennt Fenstergrößen-Änderungen
+const mtScene = {};          // Referenzen auf erzeugte Stationen/Punkte
+
+/* Hilfsfunktionen zum deterministischen Szenenaufbau */
+function mtPickNear(cid, from, min, max) {
+  const rect = visibleMapRect();
+  const cands = spawnPools[cid].filter((p) =>
+    inRect(p, rect) && dist(p, from) > min && dist(p, from) < max);
+  return cands.length ? randOf(cands) : pickSpawnPos(cid);
+}
+function mtAddPoint(st, color) {
+  const p = { id: state.idCounter++, kind: "waiting", color, station: st, wait: 0, x: st.x, y: st.y, el: null };
+  state.points.push(p);
+  st.waiting.push(p);
+  renderPoint(p);
+  layoutWaiting(st);
+  updateStationWarn(st);
+}
+
+/* Die Schritte: setup() baut die Szene auf, focus() liefert das Ziel. */
+const mtSteps = [
+  { dwell: 8,
+    setup() {
+      const pa = pickSpawnPos("magenta");
+      mtScene.a = createStation(pa.x, pa.y, "magenta");
+      const pb = mtPickNear("magenta", mtScene.a, 700, 2200);
+      mtScene.b = createStation(pb.x, pb.y, "magenta");
+    },
+    focus: () => ({ type: "map", x: (mtScene.a.x + mtScene.b.x) / 2, y: (mtScene.a.y + mtScene.b.y) / 2, scale: 1.7 }) },
+
+  { dwell: 8,
+    setup() {
+      tryBuildConnection(mtScene.a, mtScene.b, "magenta", { silent: true });
+      mtAddPoint(mtScene.a, "magenta");
+      mtAddPoint(mtScene.b, "magenta");
+    },
+    focus: () => ({ type: "map", x: (mtScene.a.x + mtScene.b.x) / 2, y: (mtScene.a.y + mtScene.b.y) / 2, scale: 1.55 }) },
+
+  { dwell: 9,
+    setup() {
+      // Blaue Station mit einem GRÜNEN Anliegen + eine zweite Station daneben.
+      // Wir ziehen die GRÜNE Linie – das grüne Anliegen fährt mit, obwohl beide
+      // Stationen blau sind: die Punktfarbe bestimmt die Linie, nicht die Station.
+      const pc = mtPickNear("blue", mtScene.b, 900, 2600);
+      mtScene.c = createStation(pc.x, pc.y, "blue");
+      mtAddPoint(mtScene.c, "green");
+      const pc2 = mtPickNear("blue", mtScene.c, 700, 1800);
+      mtScene.c2 = createStation(pc2.x, pc2.y, "blue");
+      tryBuildConnection(mtScene.c, mtScene.c2, "green", { silent: true });
+    },
+    focus: () => ({ type: "map", x: (mtScene.c.x + mtScene.c2.x) / 2, y: (mtScene.c.y + mtScene.c2.y) / 2, scale: 1.5 }) },
+
+  { dwell: 8,
+    setup() {
+      // Frisches wartendes Anliegen, damit die Fahrplanauskunft etwas anzeigt
+      if (mtScene.a) mtAddPoint(mtScene.a, "coral");
+      $("departureBoard").classList.remove("collapsed");
+      renderBoard();
+    },
+    focus: () => ({ type: "el", el: $("departureBoard") }) },
+
+  { dwell: 8,
+    setup() {
+      spawnWildPoint();
+      mtScene.wild = [...state.points].reverse().find((p) => p.kind === "wild");
+    },
+    focus: () => mtScene.wild
+      ? ({ type: "map", x: mtScene.wild.x, y: mtScene.wild.y, scale: 1.9 })
+      : ({ type: "el", el: hud }) },
+
+  { dwell: 9,
+    setup() {
+      createOffer(); // Dock wird aktiv + hüpft
+      // Station animiert vom Dock zum freien Anliegen ziehen und es aufnehmen
+      after(1.0, () => { if (state.miniStep === 5) mtFlyStationToWild(); });
+    },
+    focus: () => ({ type: "el", el: dock }) },
+
+  { dwell: 10,
+    setup() { /* nichts – nur Ziel erklären */ },
+    focus: () => ({ type: "el", el: hud }) },
+];
+
+function startMiniTutorial() {
+  resetRound();
+  state.miniTut = true;
+  state.miniMaxStep = -1;      // bisher kein Schritt aufgebaut
+  state.running = true;        // damit der Loop Punkte animiert
+  state.demo = false;
+  setDemoVisuals(false);
+  showScreen("game");
+  $("miniTut").classList.remove("hidden");
+  stage.classList.add("tut-zoom");
+  lastActivity = performance.now();
+  mtShowStep(0);
+}
+
+function mtShowStep(i) {
+  if (mtTimer != null) { cancelAfter(mtTimer); mtTimer = null; }
+  state.miniStep = i;
+  const step = mtSteps[i];
+
+  // Szene NUR aufbauen, wenn der Schritt zum ersten Mal erreicht wird.
+  // Beim Zurück-/Vorblättern bereits gesehener Schritte bleibt die Szene erhalten
+  // (sie ist kumulativ) — wir wechseln nur Fokus und Text.
+  if (i > (state.miniMaxStep ?? -1)) {
+    step.setup();
+    state.miniMaxStep = i;
+  }
+
+  const data = T.miniTut.steps[i];
+  $("mtStepInfo").textContent = (i + 1) + " / " + mtSteps.length;
+  $("mtTitle").textContent = data.title;
+  $("mtText").textContent = data.text;
+  $("mtNext").textContent = (i === mtSteps.length - 1) ? T.miniTut.startGame : T.miniTut.weiter;
+  $("mtBack").classList.toggle("hidden-step", i === 0); // im ersten Schritt kein Zurück
+
+  mtFocus = step.focus();
+  applyMtFocus(mtFocus);
+
+  const dwell = Math.min(15, step.dwell || 5); // Sicherheitsobergrenze 15 s
+  startMtProgress(dwell);
+  mtTimer = after(dwell, () => {
+    // Unbeaufsichtigt: am Ende zurück zum Start (kiosk-sicher), sonst weiter
+    if (i === mtSteps.length - 1) resetToStart();
+    else mtShowStep(i + 1);
+  });
+}
+
+/* Weiter-Button: vorzeitig weiterspringen bzw. am Ende ins Spiel */
+function mtAdvance() {
+  if (!state.miniTut) return;
+  const i = state.miniStep;
+  if (mtTimer != null) { cancelAfter(mtTimer); mtTimer = null; }
+  if (i >= mtSteps.length - 1) startGame(false); // letzter Schritt → echtes Spiel
+  else mtShowStep(i + 1);
+}
+
+/* Zurück-Button: einen Schritt zurück (Szene bleibt erhalten) */
+function mtBack() {
+  if (!state.miniTut || state.miniStep <= 0) return;
+  if (mtTimer != null) { cancelAfter(mtTimer); mtTimer = null; }
+  mtShowStep(state.miniStep - 1);
+}
+
+/* Spotlight + Zoom + Kartenposition auf das Fokusziel anwenden */
+function applyMtFocus(focus) {
+  if (!focus) return;
+  mtViewportKey = window.innerWidth + "x" + window.innerHeight;
+  let cx, cy, r0, r1;
+  if (focus.type === "map") {
+    // Client-Punkt bei Skalierung 1 bestimmen (Transform kurz zurücksetzen)
+    stage.style.transform = "none";
+    stage.getBoundingClientRect();           // Reflow erzwingen
+    const c = mapToClient(focus.x, focus.y);
+    cx = c.x; cy = c.y;
+    stage.style.transformOrigin = `${cx}px ${cy}px`;
+    stage.style.transform = `scale(${focus.scale || 1.6})`;
+    const narrow = window.innerWidth <= 760;     // engerer Spotlight auf kleinen Screens
+    r0 = narrow ? 92 : 150; r1 = narrow ? 220 : 380;
+  } else { // UI-Element
+    stage.style.transform = "none";          // Karte zurück auf Normalgröße
+    const r = focus.el.getBoundingClientRect();
+    cx = r.left + r.width / 2; cy = r.top + r.height / 2;
+    r0 = Math.hypot(r.width, r.height) / 2 + 26; r1 = r0 + 170;
+  }
+  const dim = $("mtDim").style;
+  dim.setProperty("--sx", cx + "px");
+  dim.setProperty("--sy", cy + "px");
+  dim.setProperty("--r0", r0 + "px");
+  dim.setProperty("--r1", r1 + "px");
+  // Karte gegenüber dem Fokus platzieren, damit sie ihn nicht verdeckt
+  const card = $("mtCard");
+  const lower = cy > window.innerHeight * 0.52;
+  card.classList.toggle("at-top", lower);
+  card.classList.toggle("at-bottom", !lower);
+}
+
+/* Bei Fenstergrößen-Änderung den aktuellen Fokus neu setzen (sonst nichts tun) */
+function mtRefocus() {
+  if (!mtFocus) return;
+  const key = window.innerWidth + "x" + window.innerHeight;
+  if (key !== mtViewportKey) applyMtFocus(mtFocus);
+}
+
+/* Fortschrittsbalken des Auto-Weiter füllen */
+function startMtProgress(dwell) {
+  const fill = $("mtProgressFill");
+  fill.style.transition = "none";
+  fill.style.width = "0%";
+  fill.getBoundingClientRect();              // Reflow, damit der Reset greift
+  fill.style.transition = `width ${dwell}s linear`;
+  fill.style.width = "100%";
+}
+
+/* Schritt "Stationen selbst setzen": eine Station animiert vom Dock zum freien
+   Anliegen fliegen lassen und es dort aufnehmen. Macht sichtbar, dass man neue
+   Stationen genau dorthin zieht, wo freie Anliegen warten. */
+function mtFlyStationToWild() {
+  const wild = mtScene.wild;
+  if (!wild || !state.offer) return;
+
+  // Spotlight kurz weit öffnen, damit der ganze Weg (Dock → Anliegen) sichtbar ist
+  const dim = $("mtDim").style;
+  const big = Math.hypot(window.innerWidth, window.innerHeight);
+  dim.setProperty("--sx", window.innerWidth / 2 + "px");
+  dim.setProperty("--sy", window.innerHeight / 2 + "px");
+  dim.setProperty("--r0", big + "px");
+  dim.setProperty("--r1", big + 200 + "px");
+
+  // Flug-Dot vom Dock zum Anliegen
+  const from = dock.getBoundingClientRect();
+  const to = mapToClient(wild.x, wild.y);
+  const fly = document.createElement("div");
+  fly.className = "mt-fly";
+  fly.style.left = from.left + from.width / 2 + "px";
+  fly.style.top = from.top + from.height / 2 + "px";
+  $("miniTut").appendChild(fly);
+  requestAnimationFrame(() => {
+    fly.style.transition = "left 1.05s cubic-bezier(.5,0,.3,1), top 1.05s cubic-bezier(.5,0,.3,1)";
+    fly.style.left = to.x + "px";
+    fly.style.top = to.y + "px";
+  });
+  after(1.15, () => {
+    fly.remove();
+    if (state.offer && mtScene.wild) {
+      // Station genau am Anliegen platzieren → es wird aufgenommen
+      finishOfferPlacement(mtScene.wild.x, mtScene.wild.y, mtScene.wild.continent, false);
+    }
+  });
+}
+
 /* ====================================================================== [14]
    EINGABEN — Pointer (Maus + Touch), Tipp-Tipp-Bau, Drag & Drop, Inaktivität
    ====================================================================== */
@@ -2428,7 +2789,7 @@ for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"
 }
 
 function checkIdle(now) {
-  if (state.demo) return;
+  if (state.demo || state.miniTut) return; // während Demo/Tour kein Auto-Demo-Start
   const infoOpen = !$("screen-info").classList.contains("hidden");
   const limit = (infoOpen ? BALANCE.idleToDemoInfo
     : state.screen === "game" ? BALANCE.idleToDemoGame
@@ -2630,6 +2991,10 @@ function onStationDragEnd(e) {
 
 /* --- Buttons --- */
 $("startBtn").addEventListener("click", () => startGame(false));
+$("miniTutBtn").addEventListener("click", startMiniTutorial);
+$("mtNext").addEventListener("click", mtAdvance);
+$("mtBack").addEventListener("click", mtBack);
+$("mtSkip").addEventListener("click", resetToStart);
 $("restartBtn").addEventListener("click", resetToStart);
 $("playAgainBtn").addEventListener("click", () => startGame(false));
 $("toStartBtn").addEventListener("click", resetToStart);
@@ -2668,6 +3033,9 @@ function applyStaticTexts() {
   $("startSubtitle").textContent = T.ui.subtitle;
   $("startIntro").innerHTML = T.ui.intro;
   $("startBtn").textContent = T.ui.startBtn;
+  $("miniTutBtn").textContent = T.ui.miniTutBtn;
+  $("mtBack").textContent = T.miniTut.zurueck;
+  $("mtSkip").textContent = T.miniTut.skip + " ✕";
   $("restartBtn").querySelector(".r-text").textContent = T.ui.restartBtn;
   $("playAgainBtn").textContent = T.ui.playAgainBtn;
   $("toStartBtn").textContent = T.ui.toStartBtn;

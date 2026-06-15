@@ -22,8 +22,9 @@ const GAME_TEXTS = {
     title: "Nächster Halt: Mitbestimmung",
     version: "2.0",
     subtitle: "Ein Liniennetz für gute Arbeit in Magentara",
-    intro: "Verbinde Stationen mit Linien in der passenden Farbe und transportiere alle Anliegen.<br>Bleiben Anliegen liegen, sinkt die Netzstabilität.<br><strong>Du hast 2 Minuten – nimm alle mit!</strong>",
+    intro: "Verbinde die Stationen und halte die Netzstabilität für 2 Minuten.<br>Nimm alle Anliegen (Punkte) mit, indem du sie mit der richtigen Farbe verbindest.",
     startBtn: "Spiel starten",
+    miniTutBtn: "Tutorial",
     restartBtn: "Neustart",
     playAgainBtn: "Nochmal spielen",
     toStartBtn: "Zum Start",
@@ -109,6 +110,29 @@ const GAME_TEXTS = {
       ]
     },
     closeBtn: "Alles klar"
+  },
+
+  /* --------------------------------------------------------------------------
+     MINI-TUTORIAL: geführte 30-Sekunden-Tour (Button im Startmenü)
+     ----------------------------------------------------------------------------
+     Eine Folge kurzer Erklär-Schritte. Jeder Schritt hält das Geschehen an,
+     dunkelt Unwichtiges ab, zoomt auf das Wesentliche und erklärt es groß.
+     "dwell" = Sekunden bis zum automatischen Weiterspringen (max. 15).
+     -------------------------------------------------------------------------- */
+  miniTut: {
+    weiter: "Weiter",
+    zurueck: "Zurück",
+    startGame: "Spiel starten",
+    skip: "Überspringen",
+    steps: [
+      { title: "Stationen verbinden", text: "Tippe eine Station an und zieh eine Linie zur nächsten. So entsteht dein Netz." },
+      { title: "Anliegen mitnehmen", text: "Die farbigen Punkte sind Anliegen. Über passende Linien fahren sie automatisch mit – nimm ALLE mit!" },
+      { title: "Die Punktfarbe zählt", text: "Hier wartet ein grünes Anliegen an einer blauen Station. Nicht die Station, sondern die Farbe des Punktes bestimmt die Linie – dieses Anliegen braucht eine grüne Linie." },
+      { title: "Fahrplanauskunft", text: "Die Tafel oben links zeigt dir jederzeit, welches Anliegen wo wartet und welche Linienfarbe es braucht." },
+      { title: "Freie Anliegen", text: "Manche Anliegen erscheinen frei auf der Karte. Bring eine Station oder Linie in ihre Nähe." },
+      { title: "Stationen selbst setzen", text: "Angekündigte Stationen platzierst du selbst: Zieh den Punkt aus der Leiste auf die Karte." },
+      { title: "Dein Ziel", text: "Halte die Netzstabilität 2 Minuten über 0 %. Einfluss ist dein Bau-Budget. Viel Erfolg!" }
+    ]
   },
 
   /* --------------------------------------------------------------------------
