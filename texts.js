@@ -156,6 +156,10 @@ const GAME_TEXTS = {
     /* Weitere falsche Linienfarben: kurz */
     wrongLineShort: "Falsche Linienfarbe: Stabilität sinkt.",
 
+    /* Falsche Farbe an der Tutorial-Station (erste Farbwechsel-Lektion):
+       Verbindung wird abgelehnt, {FARBE} = Farbadjektiv des Kontinents */
+    lockedColor: "Falsche Farbe! Diese Station gehört zum {FARBE} Kontinent. Wähle unten die passende Linie und verbinde sie damit.",
+
     noInfluence: "Nicht genug Einfluss. Baue kürzer.",
     invalidDrop: "Bitte auf einem Kontinent platzieren – Station wurde automatisch gesetzt.",
     stranded: "Ein Anliegen wartet ohne Verbindung. Baue eine Linie in der Farbe des Punktes."

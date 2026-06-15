@@ -1191,6 +1191,7 @@ function resetRound() {
     preferredContinent: null,
     offer: null,                 // aktuelle frei platzierbare Station (Dock)
     firstOfferUsed: false,       // erstes Angebot bekommt mehr Zeit + Hüpf-Animation
+    colorLockStation: null,      // Tutorial-Station, die nur ihre eigene Farbe akzeptiert
     drag: null,                  // aktiver Drag (Linie oder Station)
     selectedStation: null,       // Tipp-Tipp-Bau: erste angewählte Station
     tapCandidate: null,          // möglicher Kontinent-Klick
@@ -1378,12 +1379,13 @@ function spawnAutoStation() {
   createStation(pos.x, pos.y, cid);
 }
 
-function createStation(x, y, cid) {
+function createStation(x, y, cid, name) {
   const st = {
     id: state.idCounter++,
     x, y,
     continent: cid,
-    name: nextStationName().name,
+    // Vorab angekündigten Namen übernehmen (Dock), sonst nächsten aus dem Stapel
+    name: name || nextStationName().name,
     conns: [],
     waiting: [],
     el: null, warnEl: null,
@@ -1423,6 +1425,9 @@ function createStation(x, y, cid) {
     tut.lineMenuShown = true;
     showBubble({ anchor: "lineMenu", text: T.tutorial.lineMenu, ttl: 6 });
     pulseLineButton(cid);
+    // Diese Tutorial-Station lässt sich NUR mit ihrer eigenen Farbe verbinden,
+    // bis das einmal richtig gelungen ist (Farbwechsel-Lektion).
+    if (!state.demo) state.colorLockStation = st;
   }
   return st;
 }
@@ -1542,10 +1547,11 @@ function autoPlaceOffer() {
 
 /* Gemeinsamer Abschluss für Drop & Auto-Platzierung */
 function finishOfferPlacement(x, y, cid, wasAuto) {
+  const announcedName = state.offer?.name; // im Dock angekündigten Namen merken
   state.offer = null;
   setDockIdle();
   state.placedBeyondAuto++;
-  const st = createStation(x, y, cid);
+  const st = createStation(x, y, cid, announcedName);
   if (wasAuto && !state.demo) showToast(T.ui.autoPlacedToast);
   pickupWildNearStation(st);
   return st;
@@ -1604,6 +1610,18 @@ function connectionCost(length) {
    Gibt das Connection-Objekt zurück oder false. */
 function tryBuildConnection(a, b, lineId, opts = {}) {
   if (!a || !b || a === b) return false;
+
+  // Tutorial-Sperre: Die Farbwechsel-Station akzeptiert NUR ihre eigene Farbe.
+  // Falsche Farbe → Linie fährt zurück + deutliche Meldung, nichts wird gebaut.
+  const lock = state.colorLockStation;
+  if (lock && (a === lock || b === lock) && lineId !== lock.continent && !state.demo && !opts.silent) {
+    snapBackLine(a, b, LINES[lineId].color);
+    flashRed();
+    pulseLineButton(lock.continent); // richtige Linie erneut hervorheben
+    showBubble({ map: lock, text: T.errors.lockedColor.replace("{FARBE}", T.ui.continentAdjectives[lock.continent]), ttl: 6, error: true });
+    return false;
+  }
+
   // exakte Duplikate (gleiches Paar, gleiche Linie) verhindern
   if (state.connections.some((c) => c.line === lineId &&
       ((c.a === a && c.b === b) || (c.a === b && c.b === a)))) {
@@ -1650,6 +1668,11 @@ function tryBuildConnection(a, b, lineId, opts = {}) {
   renderStation(a); renderStation(b); // ggf. zu Umsteigepunkten aufwerten
 
   state.tutorial.firstConnectionBuilt = true;
+  // Lektion bestanden: Wurde die gesperrte Station korrekt (eigene Farbe)
+  // verbunden, hebt sich die Sperre auf.
+  if (state.colorLockStation && (a === state.colorLockStation || b === state.colorLockStation)) {
+    state.colorLockStation = null;
+  }
   pickupWildNearLine(conn);
   return conn;
 }
@@ -2253,6 +2276,23 @@ function rippleAt(x, y) {
   const c = svgEl("circle", { class: "fx-ripple", cx: x, cy: y, r: 120, "stroke-width": 14 });
   gFx.appendChild(c);
   after(0.8, () => c.remove());
+}
+/* Abgelehnte Linie "fährt zurück": kurz zeichnen, dann zur Startstation einziehen */
+function snapBackLine(a, b, color) {
+  const pts = octiRoute(a.x, a.y, b.x, b.y);
+  const el = svgEl("path", {
+    class: "connection", d: routePathD(pts),
+    stroke: color, "stroke-width": 44, opacity: 0.9,
+  });
+  gFx.appendChild(el);
+  const total = el.getTotalLength();
+  el.setAttribute("stroke-dasharray", total);
+  el.setAttribute("stroke-dashoffset", 0);          // voll sichtbar
+  requestAnimationFrame(() => {
+    el.style.transition = "stroke-dashoffset 0.4s ease-in";
+    el.setAttribute("stroke-dashoffset", total);     // zieht sich zur Startstation zurück
+    after(0.45, () => el.remove());
+  });
 }
 /* Schwebender Belohnungs-/Kostentext (Kartenkoordinaten → Bildschirm) */
 function floatTextAtClient(x, y, text) {
