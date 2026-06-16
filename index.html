@@ -53,6 +53,8 @@ html, body {
 }
 #departureBoard.hidden { display: none; }
 #departureBoard.collapsed { width: 46px; }
+/* Stark vergrößert im Tutorial-Schritt "Fahrplanauskunft" (von oben links wachsend) */
+#departureBoard.tut-big { transform: scale(1.75); transform-origin: top left; }
 #boardToggle {
   display: flex; align-items: center; gap: 9px;
   width: 100%; min-height: 44px; padding: 10px 11px;
@@ -449,6 +451,7 @@ html, body {
 #endTitle { font-size: clamp(22px, 3.2vw, 38px); line-height: 1.15; }
 #endStability { font-size: clamp(15px, 1.9vw, 21px); font-weight: 800; color: #ff5fae; }
 #endText { font-size: clamp(14px, 1.6vw, 18px); line-height: 1.45; opacity: 0.96; }
+#endOffer { font-size: clamp(14px, 1.6vw, 18px); line-height: 1.4; font-weight: 700; color: #ff5fae; }
 #endEventMsg { font-size: clamp(12px, 1.3vw, 15px); font-style: italic; opacity: 0.75; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 12px; }
 #endButtons { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
 /* Hochkant-/Schmalfall: Karte stapeln, bleibt aber kompakt */
@@ -470,6 +473,12 @@ html, body {
   position: fixed; top: 16px; right: 22px; z-index: 81; pointer-events: none;
   color: #fff; font-size: clamp(18px, 2.4vw, 30px); font-weight: 800; letter-spacing: 0.28em;
 }
+/* "LEVEL 2"-Hinweis im Spiel (oben rechts, dezent) */
+#levelBadge {
+  position: fixed; top: 16px; right: 22px; z-index: 49; pointer-events: none;
+  color: #ff5fae; font-size: clamp(12px, 1.4vw, 16px); font-weight: 800; letter-spacing: 0.18em;
+}
+#levelBadge.hidden { display: none; }
 #demoHint {
   position: fixed; bottom: 156px; left: 50%; transform: translateX(-50%); /* schwebt über Linienmenü + Dock-Label */
   z-index: 81; pointer-events: none; color: #fff; opacity: 0.85;
@@ -908,8 +917,10 @@ html, body {
         <h2 id="endTitle"></h2>
         <div id="endStability"></div>
         <p id="endText"></p>
+        <p id="endOffer"></p>
         <div id="endButtons">
-          <button class="big-btn" id="playAgainBtn" type="button">Nochmal spielen</button>
+          <button class="big-btn" id="endPrimaryBtn" type="button"></button>
+          <button class="ghost-btn" id="endReplayBtn" type="button"></button>
           <button class="ghost-btn" id="toStartBtn" type="button">Zum Start</button>
         </div>
         <p id="endEventMsg"></p>
@@ -921,6 +932,7 @@ html, body {
   <div id="demoGlow" class="hidden"></div>
   <div id="demoBadge" class="hidden">DEMO</div>
   <div id="demoHint" class="hidden"></div>
+  <div id="levelBadge" class="hidden">LEVEL 2</div>
   <div id="flash"></div>
   <div id="fade"></div>
 
@@ -1038,6 +1050,18 @@ const BALANCE = {
   demoBotInterval: 1.1,       // s zwischen Bot-Aktionen
   demoHealBelow: 55,          // Demo stabilisiert sich unterhalb dieses Werts selbst …
   demoHealRate: 3.0,          // … mit +% pro Sekunde extra
+};
+
+/* LEVEL 2 (für starke Spieler:innen, ab > 75 % am Ende von Level 1).
+   Beginnt auf dem Schwierigkeitsgrad vom ENDE des 1. Levels und steigert sich
+   im Verlauf noch weiter. Werte hier anpassen. */
+const LEVEL2 = {
+  difficultyOffset: 120,      // Schwierigkeit startet, als wären schon 120 s gespielt
+  spawnMin: 1.1,              // Punkt-Spawns dürfen noch schneller werden als in Level 1 (1.7)
+  wildChance: 0.16,           // mehr freie Punkte
+  maxPoints: 34,              // mehr gleichzeitige Anliegen möglich
+  firstPointDelay: 2.5,       // sofort Druck
+  preplacedStations: 4,       // Netz ist von Beginn an vorhanden (fair trotz hoher Last)
 };
 
 /* Die vier Linien: Farbe + Zuordnung zum gleichfarbigen Kontinent.
@@ -1282,6 +1306,12 @@ function resetRound() {
     pointTimer: BALANCE.firstPointDelay,
     activeLine: "blue",          // wird beim Spawn der ersten Station überschrieben
     preferredContinent: null,
+    // Schwierigkeit (Level 1 = Standardwerte; Level 2 überschreibt in startGame)
+    level: 1,
+    difficultyOffset: 0,         // Sekunden-Vorsprung auf der Schwierigkeitskurve
+    spawnMin: BALANCE.pointSpawnMin,
+    wildChance: BALANCE.wildChance,
+    maxPoints: BALANCE.maxPointsTotal,
     offer: null,                 // aktuelle frei platzierbare Station (Dock)
     firstOfferUsed: false,       // erstes Angebot bekommt mehr Zeit + Hüpf-Animation
     colorLockStation: null,      // Tutorial-Station, die nur ihre eigene Farbe akzeptiert
@@ -1295,6 +1325,7 @@ function resetRound() {
     miniTut: false,              // geführte Tour aktiv?
     miniStep: 0,
     miniMaxStep: -1,             // weitester bereits aufgebauter Tour-Schritt
+    mtFlyEl: null,               // fliegende Station (Schritt "Stationen selbst setzen")
   });
 
   // Mini-Tutorial-Overlay + Zoom sauber zurücksetzen
@@ -1346,13 +1377,38 @@ function showScreen(name) {
 /* ====================================================================== [6]
    SPIELSTART / SPIELENDE
    ====================================================================== */
-function startGame(demo) {
+function startGame(demo, level = 1) {
   state.demo = !!demo;
   resetRound();
-  state.running = true;
-  showScreen("game");
+  state.level = level;
+  showScreen("game");          // UI zuerst sichtbar, damit Spawns die HUD-Flächen meiden
   setDemoVisuals(state.demo);
+  updateLevelBadge();
+
+  if (level === 2) {
+    // Schwierigkeit von Beginn an auf dem Niveau vom Ende des 1. Levels
+    state.difficultyOffset = LEVEL2.difficultyOffset;
+    state.spawnMin = LEVEL2.spawnMin;
+    state.wildChance = LEVEL2.wildChance;
+    state.maxPoints = LEVEL2.maxPoints;
+    state.pointTimer = LEVEL2.firstPointDelay;
+    // Netz von Anfang an vorhanden, damit die hohe Last fair bleibt
+    for (let i = 0; i < LEVEL2.preplacedStations; i++) spawnAutoStation();
+  }
+
+  state.running = true;
   // Die erste Station erscheint sofort (stationSchedule[0] = 0) im Haupt-Loop.
+}
+
+/* Kleiner "LEVEL 2"-Hinweis im HUD */
+function updateLevelBadge() {
+  let badge = $("levelBadge");
+  if (state.level === 2 && !state.demo) {
+    badge.textContent = T.end.level2Badge;
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
 }
 
 /* Zurück zum Startscreen — stoppt alles und räumt vollständig auf. */
@@ -1371,14 +1427,46 @@ function endGame(won) {
   state.running = false;
 
   const stab = Math.max(0, Math.round(state.stability));
+  const playedLevel = state.level;            // Level, das gerade gespielt wurde
   const card = $("endCard");
   card.classList.remove("win", "lose", "no-image");
   card.classList.add(won ? "win" : "lose");
 
-  $("endTitle").textContent = won ? T.end.winTitle : T.end.loseTitle;
+  $("endTitle").textContent = won
+    ? (playedLevel === 2 ? T.end.level2Title : T.end.winTitle)
+    : T.end.loseTitle;
   $("endStability").textContent = T.end.stabilityResult.replace("{WERT}", stab);
   $("endText").textContent = won ? winTextFor(stab) : T.end.loseText;
   $("endEventMsg").textContent = T.end.eventMessage;
+
+  /* --- Wie es weitergeht (Buttons je nach Ergebnis) ---
+     verloren ODER < 25 %  → Tutorial anbieten
+     > 75 %                → Level 2 anbieten
+     dazwischen            → einfach nochmal */
+  const tier = (!won || stab < 25) ? "tutorial" : (stab > 75 ? "level2" : "replay");
+  const primary = $("endPrimaryBtn"), replay = $("endReplayBtn"), offer = $("endOffer");
+
+  if (tier === "tutorial") {
+    offer.textContent = T.end.offerTutorial;
+    primary.textContent = T.end.btnTutorial;
+    primary.onclick = startMiniTutorial;
+    replay.style.display = "";
+    replay.textContent = T.end.btnReplay;
+    replay.onclick = () => startGame(false, playedLevel);
+  } else if (tier === "level2") {
+    offer.textContent = T.end.offerLevel2;
+    primary.textContent = T.end.btnLevel2;
+    primary.onclick = () => startGame(false, 2);
+    replay.style.display = "";
+    replay.textContent = T.end.btnReplay;
+    replay.onclick = () => startGame(false, playedLevel);
+  } else {
+    offer.textContent = "";
+    primary.textContent = T.ui.playAgainBtn;
+    primary.onclick = () => startGame(false, playedLevel);
+    replay.style.display = "none";
+  }
+  offer.style.display = offer.textContent ? "" : "none";
 
   // Bild laden; falls nicht vorhanden → Platzhalterfläche
   const img = $("endImage");
@@ -1426,7 +1514,15 @@ function loop(now) {
       state.boardTimer = 0.25;
       renderBoard();
     }
-    mtRefocus();
+    // Spotlight folgt der fliegenden Station (Abdunklung bleibt, hellt nur um sie auf)
+    if (state.mtFlyEl && state.miniStep === 5) {
+      const r = state.mtFlyEl.getBoundingClientRect();
+      const dim = $("mtDim").style;
+      dim.setProperty("--sx", r.left + r.width / 2 + "px");
+      dim.setProperty("--sy", r.top + r.height / 2 + "px");
+    } else {
+      mtRefocus();
+    }
   } else if (state.running) {
     state.time += dt;
     state.timeLeft = Math.max(0, BALANCE.gameDuration - state.time);
@@ -1516,8 +1612,8 @@ function createStation(x, y, cid, name) {
   // Aktive Startlinie passt zur ersten Station (auch in der Tour sinnvoll)
   if (state.stationCount === 1) { state.activeLine = cid; renderLineMenu(); }
 
-  /* --- Tutorial-Momente (im normalen Spiel; in der geführten Tour aus) --- */
-  if (!state.miniTut) {
+  /* --- Tutorial-Momente (nur im 1. Level; nicht in Tour/Level 2) --- */
+  if (!state.miniTut && state.level === 1) {
     const tut = state.tutorial;
     if (state.stationCount === 1) {
       if (!tut.firstStationShown) {
@@ -1843,21 +1939,25 @@ function pulseLineButton(lid) {
    ANLIEGEN / PUNKTE
    ====================================================================== */
 
-/* Spawn-Takt: wird alle 15 s schneller */
+/* Effektive Schwierigkeitszeit: echte Spielzeit + Level-Vorsprung.
+   In Level 2 ist der Offset 120 s → startet auf dem Niveau vom Ende von Level 1. */
+function effDifficultyTime() { return state.time + state.difficultyOffset; }
+
+/* Spawn-Takt: wird alle 15 s schneller (steigt in Level 2 von Anfang an weiter) */
 function currentPointInterval() {
-  const steps = Math.floor(state.time / BALANCE.pointSpawnAccelEvery);
-  return Math.max(BALANCE.pointSpawnMin, BALANCE.pointSpawnStart * Math.pow(BALANCE.pointSpawnAccel, steps));
+  const steps = Math.floor(effDifficultyTime() / BALANCE.pointSpawnAccelEvery);
+  return Math.max(state.spawnMin, BALANCE.pointSpawnStart * Math.pow(BALANCE.pointSpawnAccel, steps));
 }
 
 function updatePointSpawns(dt) {
   if (state.stations.length < 2) return;          // erst ab zwei Stationen
-  if (state.points.length >= BALANCE.maxPointsTotal) return;
+  if (state.points.length >= state.maxPoints) return;
   state.pointTimer -= dt;
   if (state.pointTimer > 0) return;
   state.pointTimer = currentPointInterval();
 
-  // Ab Minute 1: ~10 % freie Punkte (max. einer pro Kontinent gleichzeitig)
-  if (state.time >= BALANCE.wildFrom && Math.random() < BALANCE.wildChance) {
+  // Ab Minute 1 (bzw. sofort in Level 2): freie Punkte (max. einer pro Kontinent)
+  if (effDifficultyTime() >= BALANCE.wildFrom && Math.random() < state.wildChance) {
     if (spawnWildPoint()) return;
   }
   spawnStationPoint();
@@ -1875,7 +1975,7 @@ function spawnStationPoint() {
 
   // Farbe: meist Kontinentfarbe der Station, später gelegentlich eine fremde
   let color = st.continent;
-  if (state.time >= BALANCE.lateColorFrom && Math.random() < BALANCE.lateColorChance) {
+  if (effDifficultyTime() >= BALANCE.lateColorFrom && Math.random() < BALANCE.lateColorChance) {
     color = randOf(LINE_IDS.filter((c) => c !== st.continent));
   }
 
@@ -2575,21 +2675,32 @@ const mtSteps = [
   { dwell: 9,
     setup() {
       // Blaue Station mit einem GRÜNEN Anliegen + eine zweite Station daneben.
-      // Wir ziehen die GRÜNE Linie – das grüne Anliegen fährt mit, obwohl beide
-      // Stationen blau sind: die Punktfarbe bestimmt die Linie, nicht die Station.
+      // Das grüne Anliegen wartet zunächst sichtbar; ERST kurz vor Ablauf des
+      // Schritts wird die GRÜNE Linie gezogen und das Anliegen fährt mit –
+      // obwohl beide Stationen blau sind: die Punktfarbe bestimmt die Linie.
       const pc = mtPickNear("blue", mtScene.b, 900, 2600);
       mtScene.c = createStation(pc.x, pc.y, "blue");
       mtAddPoint(mtScene.c, "green");
       const pc2 = mtPickNear("blue", mtScene.c, 700, 1800);
       mtScene.c2 = createStation(pc2.x, pc2.y, "blue");
-      tryBuildConnection(mtScene.c, mtScene.c2, "green", { silent: true });
+      // grüne Linie erst gegen Ende des Schritts ziehen
+      after(Math.max(1, mtSteps[2].dwell - 2.5), () => {
+        if (state.miniStep === 2 && !state.connections.some((c) => c.line === "green")) {
+          tryBuildConnection(mtScene.c, mtScene.c2, "green", { silent: true });
+        }
+      });
     },
     focus: () => ({ type: "map", x: (mtScene.c.x + mtScene.c2.x) / 2, y: (mtScene.c.y + mtScene.c2.y) / 2, scale: 1.5 }) },
 
-  { dwell: 8,
+  { dwell: 8, enlargeBoard: true,
     setup() {
-      // Frisches wartendes Anliegen, damit die Fahrplanauskunft etwas anzeigt
-      if (mtScene.a) mtAddPoint(mtScene.a, "coral");
+      // Mehrere wartende Anliegen in verschiedenen Farben, damit die
+      // Fahrplanauskunft anschaulich gefüllt ist (jeweils Farbe ohne passende
+      // Linie an der Station → erscheint als Eintrag).
+      if (mtScene.a)  mtAddPoint(mtScene.a, "coral");
+      if (mtScene.b)  { mtAddPoint(mtScene.b, "blue"); mtAddPoint(mtScene.b, "blue"); }
+      if (mtScene.c)  mtAddPoint(mtScene.c, "magenta");
+      if (mtScene.c2) mtAddPoint(mtScene.c2, "coral");
       $("departureBoard").classList.remove("collapsed");
       renderBoard();
     },
@@ -2633,6 +2744,8 @@ function startMiniTutorial() {
 
 function mtShowStep(i) {
   if (mtTimer != null) { cancelAfter(mtTimer); mtTimer = null; }
+  // evtl. noch fliegende Station aufräumen (z. B. wenn vorzeitig weitergeklickt)
+  if (state.mtFlyEl) { state.mtFlyEl.remove(); state.mtFlyEl = null; }
   state.miniStep = i;
   const step = mtSteps[i];
 
@@ -2650,6 +2763,20 @@ function mtShowStep(i) {
   $("mtText").textContent = data.text;
   $("mtNext").textContent = (i === mtSteps.length - 1) ? T.miniTut.startGame : T.miniTut.weiter;
   $("mtBack").classList.toggle("hidden-step", i === 0); // im ersten Schritt kein Zurück
+
+  // Fahrplanauskunft im passenden Schritt stark vergrößern (auch beim Zurückblättern).
+  // Muss VOR applyMtFocus geschehen, damit der Spotlight die große Tafel misst.
+  const board = $("departureBoard");
+  board.classList.toggle("tut-big", !!step.enlargeBoard);
+  if (step.enlargeBoard) {
+    board.classList.remove("collapsed");
+    // Volle Breite sofort herstellen (ohne Breiten-Transition), damit der
+    // Spotlight gleich die ganze Tafel misst und nicht einen Zwischenwert.
+    board.style.transition = "none";
+    void board.offsetWidth;
+    board.style.transition = "";
+    renderBoard();
+  }
 
   mtFocus = step.focus();
   applyMtFocus(mtFocus);
@@ -2685,20 +2812,27 @@ function applyMtFocus(focus) {
   mtViewportKey = window.innerWidth + "x" + window.innerHeight;
   let cx, cy, r0, r1;
   if (focus.type === "map") {
-    // Client-Punkt bei Skalierung 1 bestimmen (Transform kurz zurücksetzen)
+    // Client-Punkt bei Skalierung 1 bestimmen. WICHTIG: die Zoom-Transition kurz
+    // abschalten, sonst liefert die CTM während einer laufenden Animation einen
+    // Zwischenwert → der Spotlight säße daneben.
+    stage.style.transition = "none";
     stage.style.transform = "none";
-    stage.getBoundingClientRect();           // Reflow erzwingen
+    stage.getBoundingClientRect();           // Layout/CTM auf "none" festschreiben
     const c = mapToClient(focus.x, focus.y);
     cx = c.x; cy = c.y;
     stage.style.transformOrigin = `${cx}px ${cy}px`;
+    stage.style.transition = "";             // Transition (aus .tut-zoom) wieder aktiv
     stage.style.transform = `scale(${focus.scale || 1.6})`;
     const narrow = window.innerWidth <= 760;     // engerer Spotlight auf kleinen Screens
     r0 = narrow ? 92 : 150; r1 = narrow ? 220 : 380;
   } else { // UI-Element
+    stage.style.transition = "none";
     stage.style.transform = "none";          // Karte zurück auf Normalgröße
+    stage.getBoundingClientRect();
+    stage.style.transition = "";
     const r = focus.el.getBoundingClientRect();
     cx = r.left + r.width / 2; cy = r.top + r.height / 2;
-    r0 = Math.hypot(r.width, r.height) / 2 + 26; r1 = r0 + 170;
+    r0 = Math.hypot(r.width, r.height) / 2 + 30; r1 = r0 + 180;
   }
   const dim = $("mtDim").style;
   dim.setProperty("--sx", cx + "px");
@@ -2736,13 +2870,11 @@ function mtFlyStationToWild() {
   const wild = mtScene.wild;
   if (!wild || !state.offer) return;
 
-  // Spotlight kurz weit öffnen, damit der ganze Weg (Dock → Anliegen) sichtbar ist
+  // Spotlight bleibt erhalten und FOLGT der fliegenden Station (siehe Loop):
+  // ein wanderndes Aufhellen statt einer kompletten Aufhebung der Abdunklung.
   const dim = $("mtDim").style;
-  const big = Math.hypot(window.innerWidth, window.innerHeight);
-  dim.setProperty("--sx", window.innerWidth / 2 + "px");
-  dim.setProperty("--sy", window.innerHeight / 2 + "px");
-  dim.setProperty("--r0", big + "px");
-  dim.setProperty("--r1", big + 200 + "px");
+  dim.setProperty("--r0", "120px");
+  dim.setProperty("--r1", "280px");
 
   // Flug-Dot vom Dock zum Anliegen
   const from = dock.getBoundingClientRect();
@@ -2752,6 +2884,7 @@ function mtFlyStationToWild() {
   fly.style.left = from.left + from.width / 2 + "px";
   fly.style.top = from.top + from.height / 2 + "px";
   $("miniTut").appendChild(fly);
+  state.mtFlyEl = fly;                       // Loop lässt den Spotlight diesem Punkt folgen
   requestAnimationFrame(() => {
     fly.style.transition = "left 1.05s cubic-bezier(.5,0,.3,1), top 1.05s cubic-bezier(.5,0,.3,1)";
     fly.style.left = to.x + "px";
@@ -2759,10 +2892,17 @@ function mtFlyStationToWild() {
   });
   after(1.15, () => {
     fly.remove();
+    state.mtFlyEl = null;
     if (state.offer && mtScene.wild) {
       // Station genau am Anliegen platzieren → es wird aufgenommen
       finishOfferPlacement(mtScene.wild.x, mtScene.wild.y, mtScene.wild.continent, false);
     }
+    // Spotlight ruhig auf der neuen Station / dem aufgenommenen Anliegen ablegen
+    const c = mapToClient(wild.x, wild.y);
+    dim.setProperty("--sx", c.x + "px");
+    dim.setProperty("--sy", c.y + "px");
+    dim.setProperty("--r0", "130px");
+    dim.setProperty("--r1", "300px");
   });
 }
 
@@ -2996,7 +3136,7 @@ $("mtNext").addEventListener("click", mtAdvance);
 $("mtBack").addEventListener("click", mtBack);
 $("mtSkip").addEventListener("click", resetToStart);
 $("restartBtn").addEventListener("click", resetToStart);
-$("playAgainBtn").addEventListener("click", () => startGame(false));
+/* #endPrimaryBtn und #endReplayBtn bekommen ihre Aktion je Ergebnis in endGame() */
 $("toStartBtn").addEventListener("click", resetToStart);
 
 /* Abfahrtstafel auf-/zuklappen. Eine manuelle Interaktion schaltet das
@@ -3037,7 +3177,6 @@ function applyStaticTexts() {
   $("mtBack").textContent = T.miniTut.zurueck;
   $("mtSkip").textContent = T.miniTut.skip + " ✕";
   $("restartBtn").querySelector(".r-text").textContent = T.ui.restartBtn;
-  $("playAgainBtn").textContent = T.ui.playAgainBtn;
   $("toStartBtn").textContent = T.ui.toStartBtn;
   $("stabilityLabel").textContent = T.ui.stabilityLabel;
   $("influenceLabel").textContent = T.ui.influenceLabel;

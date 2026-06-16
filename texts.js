@@ -22,7 +22,7 @@ const GAME_TEXTS = {
     title: "Nächster Halt: Mitbestimmung",
     version: "2.0",
     subtitle: "Ein Liniennetz für gute Arbeit in Magentara",
-    intro: "Verbinde die Stationen und halte die Netzstabilität für 2 Minuten.<br>Nimm alle Anliegen (Punkte) mit, indem du sie mit der richtigen Farbe verbindest.",
+    intro: "Verbinde die Stationen und halte die Netzstabilität für 2 Minuten. Nimm alle Anliegen (Punkte) mit, indem du sie mit der richtigen Farbe verbindest.",
     startBtn: "Spiel starten",
     miniTutBtn: "Tutorial",
     restartBtn: "Neustart",
@@ -203,6 +203,16 @@ const GAME_TEXTS = {
 
     /* Botschaft, die auf beiden Endscreens steht */
     eventMessage: "Dieses Spiel ist ein Vibe-Coding-Prototyp. Es zeigt: Aus einer Idee kann schnell ein testbares Werkzeug entstehen.",
+
+    /* Wie es weitergeht — abhängig vom Ergebnis.
+       Buttons + kurze Einladung darüber. {WERT} = erreichte Stabilität. */
+    btnLevel2:   "Level 2 starten",
+    btnTutorial: "Tutorial ansehen",
+    btnReplay:   "Nochmal",
+    offerLevel2:   "Stark gespielt! Level 2 startet von Anfang an schwerer – traust du dich?",
+    offerTutorial: "Noch etwas wackelig? Sieh dir kurz das Tutorial an.",
+    level2Title: "Level 2 gemeistert!",   // Titel bei Sieg im 2. Level
+    level2Badge: "LEVEL 2",               // kleiner Hinweis im HUD während Level 2
 
     /* Siegtexte je Netzstabilität. Es gilt der erste Eintrag, dessen "min"
        kleiner oder gleich der erreichten Stabilität ist (von oben geprüft).
