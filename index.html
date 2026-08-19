@@ -1368,6 +1368,7 @@ function freshTutorialState() {
 /* Setzt den kompletten Rundenzustand zurück (Daten + DOM). */
 function resetRound() {
   clearAllTimers();
+  resetMapZoom(); // jede neue Runde startet in der Standardansicht
 
   for (const g of [gStationHalos, gConnections, gGhost, gPoints, gStations, gFx]) g.replaceChildren();
   bubbleLayer.replaceChildren();
@@ -3096,11 +3097,68 @@ function clearSelectRing() {
   state.selectedStation = null;
 }
 
+/* --- Pinch-Zoom (zwei Finger, nur Touch) ---
+   Vor allem auf schmalen Mobilgeräten schneidet "xMidYMid slice" spürbar
+   Kartenfläche links/rechts ab. Mit zwei Fingern kann herausgezoomt werden,
+   um mehr von der Karte zu sehen (Finger zusammen = raus, auseinander =
+   zurück zur Standardansicht). Technisch wird dafür einfach der viewBox der
+   Karten-SVG angepasst — alle Koordinatenumrechnungen im Spiel
+   (clientToMap/mapToClient/mapScale/hitRadius) laufen über getScreenCTM()
+   und funktionieren dadurch automatisch mit, ganz ohne eigene Anpassung. */
+const MAP_ZOOM_MIN = 1;    // Standardansicht — nicht enger zoombar als das
+const MAP_ZOOM_MAX = 1.6;  // maximal so viel zusätzliche Fläche sichtbar
+const activeTouches = new Map(); // Touch-pointerId -> {x,y}, nur zur Pinch-Erkennung
+let pinchActive = false, pinchStartDist = 0, pinchStartZoom = 1;
+
+function applyMapZoom(zoom) {
+  zoom = clamp(zoom, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+  state.mapZoom = zoom;
+  const w = MAP_W * zoom, h = MAP_H * zoom;
+  mapSvg.setAttribute("viewBox", `${MAP_W / 2 - w / 2} ${MAP_H / 2 - h / 2} ${w} ${h}`);
+}
+function resetMapZoom() { applyMapZoom(1); }
+function pinchDistance() {
+  const pts = [...activeTouches.values()];
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+/* true = Event gehört zum Pinch und soll die normale Tipp-/Zieh-Logik NICHT
+   mehr auslösen. Für Maus und Einzelfinger-Touch bleibt alles unverändert. */
+function handlePinchStart(e) {
+  if (e.pointerType !== "touch") return false;
+  activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (activeTouches.size === 2) {
+    pinchActive = true;
+    // Laufenden Linienbau/Tipp abbrechen — die Geste gehört jetzt dem Pinch
+    state.drag = null; state.tapCandidate = null;
+    gGhost.replaceChildren(); costChip.style.display = "none";
+    pinchStartDist = pinchDistance();
+    pinchStartZoom = state.mapZoom ?? 1;
+  }
+  return pinchActive;
+}
+function handlePinchMove(e) {
+  if (!pinchActive || !activeTouches.has(e.pointerId)) return false;
+  activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (activeTouches.size >= 2 && pinchStartDist > 0) {
+    const d = pinchDistance();
+    if (d > 0) applyMapZoom(pinchStartZoom * (pinchStartDist / d));
+  }
+  return true;
+}
+function handlePinchEnd(e) {
+  const wasPinching = pinchActive;
+  activeTouches.delete(e.pointerId);
+  if (activeTouches.size < 2) pinchStartDist = 0;
+  if (activeTouches.size === 0) pinchActive = false;
+  return wasPinching;
+}
+
 /* --- Stage: Linienbau & Kontinent-Klick ---
    Verbindungen entstehen NUR zwischen platzierten Stationen: Start- und
    Endpunkt werden ausschließlich über stationAt() ermittelt — freie Punkte,
    UI-Elemente oder leere Karte können nie Linien-Endpunkt werden. */
 stage.addEventListener("pointerdown", (e) => {
+  if (handlePinchStart(e)) return;
   if (state.screen !== "game" || !state.running || state.demo || state.drag) return;
   const m = clientToMap(e.clientX, e.clientY);
   const st = stationAt(m.x, m.y);
@@ -3129,10 +3187,12 @@ stage.addEventListener("pointerdown", (e) => {
 });
 
 stage.addEventListener("pointermove", (e) => {
+  if (handlePinchMove(e)) return;
   if (state.drag?.type === "line" && e.pointerId === state.drag.pointerId) updateGhostLine(e);
 });
 
 stage.addEventListener("pointerup", (e) => {
+  if (handlePinchEnd(e)) return;
   /* Kontinent-Klick? (kurzer Tipp ohne Bewegung, nicht auf einer Station) */
   const tap = state.tapCandidate;
   state.tapCandidate = null;
@@ -3168,7 +3228,8 @@ stage.addEventListener("pointerup", (e) => {
   }
 });
 
-stage.addEventListener("pointercancel", () => {
+stage.addEventListener("pointercancel", (e) => {
+  handlePinchEnd(e);
   state.drag = null;
   state.tapCandidate = null;
   gGhost.replaceChildren();
