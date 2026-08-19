@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- Falls die Seite auf einen Homescreen gelegt wird: dann ganz ohne Browser-UI starten.
+     Der Vollbildmodus während des normalen Browsings kommt über die Fullscreen-API (siehe Skript). -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Nächster Halt: Mitbestimmung</title>
 <style>
 /* ============================================================================
@@ -470,15 +475,38 @@ html, body {
   50%      { box-shadow: inset 0 0 90px 14px rgba(226, 0, 116, 0.3); }
 }
 #demoBadge {
-  position: fixed; top: 16px; right: 22px; z-index: 81; pointer-events: none;
+  position: fixed; top: 16px; right: 66px; z-index: 81; pointer-events: none;
   color: #fff; font-size: clamp(18px, 2.4vw, 30px); font-weight: 800; letter-spacing: 0.28em;
 }
 /* "LEVEL 2"-Hinweis im Spiel (oben rechts, dezent) */
 #levelBadge {
-  position: fixed; top: 16px; right: 22px; z-index: 49; pointer-events: none;
+  position: fixed; top: 16px; right: 66px; z-index: 49; pointer-events: none;
   color: #ff5fae; font-size: clamp(12px, 1.4vw, 16px); font-weight: 800; letter-spacing: 0.18em;
 }
 #levelBadge.hidden { display: none; }
+
+/* Vollbild-Button — oben rechts, auf JEDEM Screen sichtbar (Start/Spiel/Ende/
+   Tutorial), optionales Ein-/Ausschalten statt automatischem Vollbild.
+   Ruht bei halber Deckkraft, damit er nicht ablenkt; beim Antippen kurz
+   voll sichtbar als Feedback. */
+#fullscreenBtn {
+  position: fixed; top: 12px; right: 12px; z-index: 110;
+  width: 42px; height: 42px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 20, 52, 0.55);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.28); border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.5; transition: opacity 0.15s;
+}
+#fullscreenBtn:active { background: rgba(255,255,255,0.22); opacity: 1; }
+#fullscreenBtn svg { width: 20px; height: 20px; }
+#fullscreenBtn .icon-enter { display: block; stroke: #fff; }
+#fullscreenBtn .icon-exit  { display: none; }
+/* Im aktiven (Vollbild-)Zustand wechselt nur das Icon (Pfeile nach innen statt
+   außen) — Farbe bleibt weiß. */
+#fullscreenBtn.active .icon-enter { display: none; }
+#fullscreenBtn.active .icon-exit  { display: block; }
 #demoHint {
   position: fixed; bottom: 156px; left: 50%; transform: translateX(-50%); /* schwebt über Linienmenü + Dock-Label */
   z-index: 81; pointer-events: none; color: #fff; opacity: 0.85;
@@ -552,9 +580,9 @@ html, body {
   box-shadow: 0 0 0 4px rgba(226, 0, 116, 0.55), 0 3px 12px rgba(0, 10, 35, 0.6);
 }
 
-/* Überspringen oben rechts */
+/* Überspringen oben rechts (etwas Abstand zum Vollbild-Button daneben) */
 #mtSkip {
-  position: absolute; top: 16px; right: 18px;
+  position: absolute; top: 16px; right: 66px;
   background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.35);
   color: #fff; font-family: inherit; font-size: 14px; font-weight: 600;
   padding: 8px 14px; border-radius: 12px; cursor: pointer; min-height: 40px;
@@ -657,6 +685,8 @@ html, body {
   #dockLabel { font-size: 11px; padding: 4px 9px; bottom: calc(100% + 24px); }
   #demoHint { bottom: 132px; font-size: 12px; white-space: normal; text-align: center; max-width: 86vw; }
   #mtSkip { top: 56px; right: 8px; padding: 6px 11px; font-size: 13px; } /* unter die HUD-Leiste */
+  #fullscreenBtn { width: 36px; height: 36px; top: 8px; right: 8px; }
+  #fullscreenBtn svg { width: 17px; height: 17px; }
 }
 
 @media (orientation: landscape) and (max-height: 540px) {
@@ -698,7 +728,9 @@ html, body {
   #stationDock.active #dockArrow { animation: arrowBounceSide 0.7s ease-in-out infinite; }
 
   #demoHint { bottom: 12px; font-size: 12px; }
-  #demoBadge { top: 8px; right: 12px; font-size: 16px; }
+  #demoBadge { top: 8px; right: 56px; font-size: 16px; }
+  #fullscreenBtn { width: 36px; height: 36px; top: 8px; right: 8px; }
+  #fullscreenBtn svg { width: 17px; height: 17px; }
 }
 /* Pfeil zeigt im Seitenlayout nach rechts auf den Dot und wippt horizontal */
 @keyframes arrowBounceSide {
@@ -811,6 +843,7 @@ html, body {
       <!-- ============ ENDE BASISKARTE ============ -->
 
       <!-- Spiel-Ebenen (werden per JavaScript befüllt) -->
+      <g id="gameStationHalos"></g> <!-- Schatten der Stationen — ganz unten, unter den Linien -->
       <g id="gameConnections"></g> <!-- gebaute Linien -->
       <g id="gameGhost"></g>       <!-- Vorschau beim Ziehen -->
       <g id="gamePoints"></g>      <!-- Anliegen/Punkte -->
@@ -927,6 +960,16 @@ html, body {
       </div>
     </div>
   </section>
+
+  <!-- Vollbild-Button: auf jedem Screen sichtbar, rein optional (kein Auto-Vollbild) -->
+  <button id="fullscreenBtn" type="button" aria-label="Vollbild" title="Vollbild">
+    <svg class="icon-enter" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/>
+    </svg>
+    <svg class="icon-exit" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M9 4v4a1 1 0 0 1-1 1H4M15 4v4a1 1 0 0 0 1 1h4M4 15h4a1 1 0 0 1 1 1v4M20 15h-4a1 1 0 0 0-1 1v4"/>
+    </svg>
+  </button>
 
   <!-- ======================= DEMO-/KIOSK-ANZEIGEN ======================= -->
   <div id="demoGlow" class="hidden"></div>
@@ -1091,7 +1134,8 @@ const MAP_W = 9627.4, MAP_H = 5415.4;
    ====================================================================== */
 const $ = (id) => document.getElementById(id);
 const stage = $("stage"), mapSvg = $("mapSvg");
-const gConnections = $("gameConnections"), gGhost = $("gameGhost"),
+const gStationHalos = $("gameStationHalos"),
+      gConnections = $("gameConnections"), gGhost = $("gameGhost"),
       gPoints = $("gamePoints"), gStations = $("gameStations"), gFx = $("gameFx");
 const hud = $("hud"), lineMenu = $("lineMenu"), dock = $("stationDock"), dockLabel = $("dockLabel");
 const bubbleLayer = $("bubbleLayer"), toastLayer = $("toastLayer"), fxHtmlLayer = $("fxHtmlLayer");
@@ -1106,6 +1150,48 @@ function svgEl(tag, attrs = {}) {
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
   return el;
 }
+
+/* Pfad-String für ein Vieleck mit abgerundeten Ecken (zentriert bei 0,0).
+   Trick: An jeder Ecke wird auf beiden Kanten um "radius" zurückgewichen und
+   die Ecke mit einer quadratischen Kurve (Kontrollpunkt = Original-Ecke)
+   verrundet — braucht keine Bogenberechnung und funktioniert für jedes Vieleck. */
+function roundedPolygonPath(points, radius) {
+  const n = points.length;
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const prev = points[(i - 1 + n) % n], curr = points[i], next = points[(i + 1) % n];
+    const toPrev = { x: prev.x - curr.x, y: prev.y - curr.y };
+    const toNext = { x: next.x - curr.x, y: next.y - curr.y };
+    const lenPrev = Math.hypot(toPrev.x, toPrev.y) || 1, lenNext = Math.hypot(toNext.x, toNext.y) || 1;
+    const a = { x: curr.x + (toPrev.x / lenPrev) * radius, y: curr.y + (toPrev.y / lenPrev) * radius };
+    const b = { x: curr.x + (toNext.x / lenNext) * radius, y: curr.y + (toNext.y / lenNext) * radius };
+    d += (i === 0 ? `M${a.x},${a.y}` : ` L${a.x},${a.y}`) + ` Q${curr.x},${curr.y} ${b.x},${b.y}`;
+  }
+  return d + " Z";
+}
+
+/* Eckpunkte eines gleichseitigen Dreiecks (Spitze nach oben), Umkreisradius R.
+   Wird für die Grundform kleiner Stationen genutzt — deutlich von den runden
+   Anliegen-Punkten unterscheidbar, ohne selbst Kreis oder Ellipse zu sein. */
+function trianglePoints(R) {
+  return [-90, 30, 150].map((deg) => {
+    const rad = (deg * Math.PI) / 180;
+    return { x: R * Math.cos(rad), y: R * Math.sin(rad) };
+  });
+}
+/* Maximal abgerundete Ecken: Bei einem gleichseitigen Dreieck mit Umkreis-
+   radius R ist die Kantenlänge R·√3; der Eckenradius darf höchstens die
+   halbe Kantenlänge betragen, sonst überschneiden sich die Rundungen. Wir
+   gehen knapp darunter — die Ecken sind dadurch so rund wie möglich, ohne
+   dass die Form kaputtgeht. Der Halo (Schatten) ist dieselbe Form, nur
+   gleichmäßig größer skaliert, damit er passend hinter der Station hervorschaut. */
+const STATION_TRI_R = 84;
+const STATION_TRI_RADIUS = STATION_TRI_R * Math.sqrt(3) * 0.49; // knapp unter dem Maximum (0.5)
+const STATION_HALO_SCALE = 1.5; // Schatten = 1,5-fache Größe der Station
+const STATION_TRIANGLE_PATH = roundedPolygonPath(trianglePoints(STATION_TRI_R), STATION_TRI_RADIUS);
+const STATION_TRIANGLE_HALO_PATH = roundedPolygonPath(
+  trianglePoints(STATION_TRI_R * STATION_HALO_SCALE), STATION_TRI_RADIUS * STATION_HALO_SCALE
+);
 
 /* Zentrale Timeout-Verwaltung: Beim Reset werden ALLE offenen Timer gestoppt,
    damit kein alter Effekt/Hinweis in die neue Runde "hineinfeuert". */
@@ -1283,7 +1369,7 @@ function freshTutorialState() {
 function resetRound() {
   clearAllTimers();
 
-  for (const g of [gConnections, gGhost, gPoints, gStations, gFx]) g.replaceChildren();
+  for (const g of [gStationHalos, gConnections, gGhost, gPoints, gStations, gFx]) g.replaceChildren();
   bubbleLayer.replaceChildren();
   toastLayer.replaceChildren();
   fxHtmlLayer.replaceChildren();
@@ -1340,8 +1426,6 @@ function resetRound() {
   $("departureBoard").classList.add("collapsed");
   $("boardList").replaceChildren();
   $("boardBadge").classList.remove("show");
-  state.boardWasEmpty = true;
-  state.boardAppearances = 0;
   state.boardAutoExpanded = false;
   updateHud();
   renderLineMenu();
@@ -1650,24 +1734,40 @@ function createStation(x, y, cid, name) {
    Umsteigepunkte (mehrere Linienfarben): weiße Pillenform mit dunkler
    Kreisfläche dahinter — angelehnt an die Stilreferenz. */
 function renderStation(st) {
+  const isFirstRender = !st.el;
   const g = svgEl("g", { class: "station-group", transform: `translate(${st.x},${st.y})` });
-  const pop = svgEl("g", { class: st.el ? "" : "pop" }); // Pop-Animation nur beim ersten Aufbau
+  const pop = svgEl("g", { class: isFirstRender ? "pop" : "" }); // Pop-Animation nur beim ersten Aufbau
+
+  // Schatten lebt in einer EIGENEN Ebene ganz unten (unter den Linien) — dafür
+  // braucht er seine eigene Translate-Transform, da er nicht mehr im selben
+  // <g> wie die sichtbare Station steckt.
+  const haloWrap = svgEl("g", { transform: `translate(${st.x},${st.y})`, class: isFirstRender ? "pop" : "" });
 
   const lineColors = new Set(st.conns.map((c) => c.line));
   const isHub = lineColors.size >= 2 || st.conns.length >= 3;
 
-  pop.appendChild(svgEl("circle", { class: "station-halo", r: isHub ? 150 : 95 }));
-
-  let shape;
+  // Halo (Schatten) folgt derselben Form wie die Station selbst, nur größer.
+  let halo, shape;
   if (isHub) {
     const w = 230 + (st.conns.length > 3 ? 40 : 0);
+    const h = 110, rx = 55;
+    halo = svgEl("rect", {
+      class: "station-halo",
+      x: -(w * STATION_HALO_SCALE) / 2, y: -(h * STATION_HALO_SCALE) / 2,
+      width: w * STATION_HALO_SCALE, height: h * STATION_HALO_SCALE, rx: rx * STATION_HALO_SCALE,
+    });
     shape = svgEl("rect", {
-      class: "station-shape", x: -w / 2, y: -55, width: w, height: 110, rx: 55,
+      class: "station-shape", x: -w / 2, y: -h / 2, width: w, height: h, rx,
       stroke: LINES[st.continent].color,
     });
   } else {
-    shape = svgEl("circle", { class: "station-shape", r: 62, stroke: LINES[st.continent].color });
+    // Abgerundetes Dreieck statt Kreis — hebt Stationen klar von den runden
+    // Anliegen-Punkten ab. Sobald die Station zum Umsteigepunkt wird, siehe
+    // oben: Pillenform (unverändert).
+    halo = svgEl("path", { class: "station-halo", d: STATION_TRIANGLE_HALO_PATH });
+    shape = svgEl("path", { class: "station-shape", d: STATION_TRIANGLE_PATH, stroke: LINES[st.continent].color });
   }
+  haloWrap.appendChild(halo);
   pop.appendChild(shape);
   g.appendChild(pop);
 
@@ -1681,7 +1781,9 @@ function renderStation(st) {
   g.appendChild(label);
 
   if (st.el) st.el.remove();
-  st.el = g; st.warnEl = warn;
+  if (st.haloEl) st.haloEl.remove();
+  st.el = g; st.haloEl = haloWrap; st.warnEl = warn;
+  gStationHalos.appendChild(haloWrap);
   gStations.appendChild(g);
   updateStationWarn(st);
   layoutWaiting(st);
@@ -2242,27 +2344,19 @@ function updateBoard() {
   const rows = boardEntries();
   const total = rows.reduce((s, r) => s + r.count, 0);
 
-  /* Automatisch ausklappen, sobald zum ZWEITEN Mal etwas wartet — aber nur am
-     Desktop (nicht mobil/schmal) und nur einmal. Danach respektieren wir die
-     manuelle Wahl der Spieler:innen. */
-  if (rows.length) {
-    if (state.boardWasEmpty !== false) {        // Übergang leer → etwas wartet
-      state.boardAppearances = (state.boardAppearances ?? 0) + 1;
-      if (state.boardAppearances >= 2 && !state.boardAutoExpanded
-          && !isVerticalUI() && window.innerWidth > 760) {
-        state.boardAutoExpanded = true;
-        board.classList.remove("collapsed");
-      }
-    }
-    state.boardWasEmpty = false;
-  } else {
-    state.boardWasEmpty = true;
-  }
-
   /* Notification-Badge am eingeklappten Icon: Anzahl wartender Anliegen */
   const badge = $("boardBadge");
   badge.textContent = total > 9 ? "9+" : String(total);
   badge.classList.toggle("show", total > 0);
+
+  /* Automatisch ausklappen, sobald die Badge-Zahl zum ERSTEN MAL "2" erreicht
+     (mind. 2 gleichzeitig wartende Anliegen) — danach nie wieder automatisch,
+     die manuelle Wahl der Spieler:innen hat Vorrang. Nur am Desktop (nicht
+     mobil/schmal), da dort ohnehin kein Platz für die ausgeklappte Tafel ist. */
+  if (total >= 2 && !state.boardAutoExpanded && !isVerticalUI() && window.innerWidth > 760) {
+    state.boardAutoExpanded = true;
+    board.classList.remove("collapsed");
+  }
 
   if (!board.classList.contains("collapsed")) renderBoard(rows);
 }
@@ -2912,6 +3006,45 @@ function mtFlyStationToWild() {
 let lastActivity = performance.now();
 let lastPointerPos = null;
 
+/* Vollbild ist OPTIONAL — ausgelöst nur über den Button oben rechts
+   (#fullscreenBtn), nicht automatisch. Der Fullscreen-API-Aufruf MUSS aus
+   einer echten Nutzer-Geste kommen, ein Button-Klick erfüllt das zuverlässig. */
+function enterFullscreen() {
+  const el = document.documentElement;
+  try {
+    const req = el.requestFullscreen
+      ? el.requestFullscreen()
+      : el.webkitRequestFullscreen
+      ? el.webkitRequestFullscreen()
+      : el.msRequestFullscreen
+      ? el.msRequestFullscreen()
+      : null;
+    if (req && typeof req.catch === "function") req.catch(() => {});
+  } catch (err) { /* Fullscreen hier nicht verfügbar/erlaubt */ }
+}
+function exitFullscreen() {
+  try {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (document.msExitFullscreen) document.msExitFullscreen();
+  } catch (err) { /* nichts zu tun */ }
+}
+function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function toggleFullscreen() { isFullscreen() ? exitFullscreen() : enterFullscreen(); }
+
+/* Icon + Titel des Buttons an den tatsächlichen Vollbild-Status anpassen
+   (auch wenn z. B. per ESC-Taste verlassen wurde, nicht nur per Klick). */
+function updateFullscreenBtn() {
+  const btn = $("fullscreenBtn");
+  const active = isFullscreen();
+  btn.classList.toggle("active", active);
+  btn.setAttribute("aria-label", active ? "Vollbild verlassen" : "Vollbild");
+  btn.title = active ? "Vollbild verlassen" : "Vollbild";
+}
+for (const ev of ["fullscreenchange", "webkitfullscreenchange", "msfullscreenchange"]) {
+  document.addEventListener(ev, updateFullscreenBtn);
+}
+
 /* Globale Aktivitätserkennung (Klick, Touch, Mausbewegung, Taste).
    Im Demo-Modus bricht JEDE echte Eingabe die Demo sofort ab. */
 function registerActivity(e) {
@@ -3093,12 +3226,13 @@ function onStationDragMove(e) {
   const m = clientToMap(e.clientX, e.clientY);
   const cid = continentAt(m.x, m.y);
 
-  // Ghost-Station: weißer Kreis; Ringfarbe zeigt Kontinent, rot-gestrichelt = ungültig
+  // Ghost-Station: abgerundetes Dreieck (wie die spätere Station), Schatten
+  // in derselben Form; Ringfarbe zeigt Kontinent, rot-gestrichelt = ungültig
   gGhost.replaceChildren();
   const g = svgEl("g", { transform: `translate(${m.x},${m.y})`, opacity: 0.9 });
-  g.appendChild(svgEl("circle", { r: 95, fill: "rgba(3,12,35,0.35)" }));
-  g.appendChild(svgEl("circle", {
-    r: 62, fill: "#fff",
+  g.appendChild(svgEl("path", { d: STATION_TRIANGLE_HALO_PATH, fill: "rgba(3,12,35,0.35)" }));
+  g.appendChild(svgEl("path", {
+    d: STATION_TRIANGLE_PATH, fill: "#fff",
     stroke: cid ? LINES[cid].color : "#ff4040", "stroke-width": 16,
     "stroke-dasharray": cid ? "none" : "40 28",
   }));
@@ -3132,6 +3266,7 @@ function onStationDragEnd(e) {
 /* --- Buttons --- */
 $("startBtn").addEventListener("click", () => startGame(false));
 $("miniTutBtn").addEventListener("click", startMiniTutorial);
+$("fullscreenBtn").addEventListener("click", toggleFullscreen);
 $("mtNext").addEventListener("click", mtAdvance);
 $("mtBack").addEventListener("click", mtBack);
 $("mtSkip").addEventListener("click", resetToStart);
@@ -3254,6 +3389,7 @@ function init() {
   applyStaticTexts();
   indexMapPaths();
   buildSpawnPools();
+  updateFullscreenBtn();
   resetToStart();
   requestAnimationFrame((t) => { lastFrame = t; requestAnimationFrame(loop); });
 }
